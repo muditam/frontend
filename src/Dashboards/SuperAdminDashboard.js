@@ -170,38 +170,44 @@ function getRange(preset) {
 }
 
 
-async function fetchSection(start, end, refreshKey = 0) {
- return getCachedData(`super-admin:section:${start}:${end}:${refreshKey}`, async () => {
-   const cfg = { params:{ start, end }, withCredentials:true };
-   const [shipR, sumR, funR, canR, splR, fvrR, escR, cusR, aovR, compR] = await Promise.allSettled([
-     axios.get(`${ANALYTICS}/shiptrack-overview`, cfg),
-     axios.get(`${ANALYTICS}/dashboard-summary`, cfg),
-     axios.get(`${ANALYTICS}/orders-vs-fulfilled`, cfg),
-     axios.get(`${ANALYTICS}/cancelled-orders`, cfg),
-     axios.get(`${ANALYTICS}/orders`, cfg),
-     axios.get(`${ANALYTICS}/first-vs-returning`, cfg),
-     axios.get(`${ANALYTICS}/escalations`, cfg),
-     axios.get(`${ANALYTICS}/customer-stats`, cfg),
-     axios.get(`${ANALYTICS}/aov`, cfg),
-     axios.get(`${ANALYTICS}/comprehensive-summary`, cfg),
-   ]);
-   const endpointResults = [
-     ["ShipTrack dashboard summary", shipR],
-     ["order summary", sumR], ["fulfillment status", funR],
-     ["cancellations", canR], ["order split", splR],
-     ["customer type", fvrR], ["escalations", escR],
-     ["customer stats", cusR], ["average order value", aovR],
-     ["comprehensive summary", compR],
-   ];
-   const failures = endpointResults.filter(([, result]) => result.status === "rejected");
+const SECTION_ENDPOINTS = ["shiptrack-overview", "orders", "first-vs-returning", "escalations", "customer-stats", "comprehensive-summary"];
+const sectionInFlight = new Map();
+
+async function fetchSection(start, end, refreshKey = 0, onProgress = () => {}) {
+ const results = SECTION_ENDPOINTS.map(() => ({ status: "pending" }));
+ await Promise.all(SECTION_ENDPOINTS.map(async (endpoint, index) => {
+   const key = `super-admin:v2:${endpoint}:${start}:${end}:${refreshKey}`;
+   try {
+     let pending = sectionInFlight.get(key);
+     if (!pending) {
+       pending = getCachedData(key, async () => {
+         const { data } = await axios.get(`${ANALYTICS}/${endpoint}`, {
+           params: { start, end }, withCredentials: true, timeout: 25000,
+         });
+         return data;
+       }, DASHBOARD_CACHE_TTL_MS).finally(() => sectionInFlight.delete(key));
+       sectionInFlight.set(key, pending);
+     }
+     results[index] = { status: "fulfilled", value: { data: await pending } };
+   } catch (reason) {
+     results[index] = { status: "rejected", reason };
+   }
+   if (results[0].status === "fulfilled") onProgress(mapSectionResults(results));
+ }));
+ return mapSectionResults(results);
+}
+
+function mapSectionResults(results) {
+   const [shipR, splR, fvrR, escR, cusR, compR] = results;
    if (shipR.status !== "fulfilled") {
      const status = shipR.reason?.response?.status;
-     throw new Error(`Could not load authoritative ShipTrack totals${status ? ` (${status})` : ""}.`);
+     const details = shipR.reason?.response?.data?.details || shipR.reason?.response?.data?.error;
+     throw new Error(`Could not load authoritative ShipTrack totals${status ? ` (${status})` : ""}${details ? `: ${details}` : "."}`);
    }
    const ok = (r) => r.status === "fulfilled" ? (r.value.data || {}) : {};
    const ship = ok(shipR);
    const spl = ok(splR);
-   const fvr = ok(fvrR), esc = ok(escR), aov = ok(aovR);
+   const fvr = ok(fvrR), esc = ok(escR);
    const comp = ok(compR);
    const trends = cusR.status==="fulfilled" ? cusR.value.data : [];
    const cus = Array.isArray(trends) && trends.length ? trends[trends.length-1] : {};
@@ -219,8 +225,6 @@ async function fetchSection(start, end, refreshKey = 0) {
    const shipCodCount = Number(shipPayments.COD || 0);
    const shipPrepaidAmount = Number(shipPaymentAmounts.PREPAID || 0);
    const shipCodAmount = Number(shipPaymentAmounts.COD || 0);
-   const teamRev   = (aov.team?.aov||0)*(aov.team?.orders||0);
-   const onlineRev = (aov.online?.aov||0)*(aov.online?.orders||0);
    const emptyCompSegment = {
      totalOrders: 0,
      totalAmount: 0,
@@ -246,12 +250,8 @@ async function fetchSection(start, end, refreshKey = 0) {
 
 
    return {
-       _loadWarning: [
-       failures.length
-         ? `Some dashboard sections did not load: ${failures.filter(([label]) => label !== "ShipTrack dashboard summary").map(([label]) => label).join(", ")}. Values in those sections may be unavailable.`
-         : "",
-       "Headline order and shipment totals use ShipTrack. Team vs Shopify attribution and customer metrics remain LMS-specific because those assignment fields are not stored in ShipTrack.",
-     ].filter(Boolean).join(" "),
+       _states: Object.fromEntries(SECTION_ENDPOINTS.map((endpoint, index) => [endpoint, results[index].status])),
+       _loadWarning: ship.stale ? "ShipTrack is temporarily unavailable; headline totals are from a recent cached snapshot." : "",
      totalOrders:       tO,
      totalRevenue:      tR,
      fulfilled:         shipFulfilled,
@@ -263,10 +263,6 @@ async function fetchSection(start, end, refreshKey = 0) {
      aov:               tO ? Number((tR / tO).toFixed(2)) : 0,
      teamOrders:        spl.teamOrders         || 0,
      onlineOrders:      spl.onlineOrders       || 0,
-     teamRevenue:       teamRev,
-     onlineRevenue:     onlineRev,
-     teamAov:           aov.team?.aov          || 0,
-     onlineAov:         aov.online?.aov        || 0,
      activeCustomers:   cus.active             || 0,
      lostCustomers:     cus.lost               || 0,
      unassignedCustomers: cus.unassigned       || 0,
@@ -295,14 +291,22 @@ async function fetchSection(start, end, refreshKey = 0) {
        shopify: mapCompSegment(comp?.shopify || emptyCompSegment),
      },
    };
- }, DASHBOARD_CACHE_TTL_MS);
 }
 
 
-async function fetchFulfillmentOverview() {
- return getCachedData("super-admin:fulfillment-overview", async () => {
+async function fetchFulfillmentOverview(refreshKey = 0) {
+ return getCachedData(`super-admin:fulfillment-overview:${refreshKey}`, async () => {
    const { data } = await axios.get(`${ANALYTICS}/dashboard-fulfillment-overview`, {
      withCredentials: true,
+   });
+   return data || {};
+ }, FULFILLMENT_CACHE_TTL_MS);
+}
+
+async function fetchShiptrackTimingOverview(refreshKey = 0) {
+ return getCachedData(`super-admin:shiptrack-timing:${refreshKey}`, async () => {
+   const { data } = await axios.get(`${ANALYTICS}/shiptrack-timing-overview`, {
+     withCredentials: true, timeout: 20000,
    });
    return data || {};
  }, FULFILLMENT_CACHE_TTL_MS);
@@ -502,9 +506,12 @@ function TrendSparkline({ points, color, loading }) {
 
 function TimingKpiCard({ label, metric, accent, note, loading }) {
  const direction = getDirectionMeta(metric.direction);
+ const hasCurrentSample = metric.eligibleCount > 0;
  const isImproving = metric.direction === "improving";
- const changeLabel = `${direction.arrow} ${fmtPctValue(metric.percentChange)}`;
- const absoluteCopy = metric.previousAverageHours > 0
+ const changeLabel = hasCurrentSample ? `${direction.arrow} ${fmtPctValue(metric.percentChange)}` : "No current sample";
+ const absoluteCopy = !hasCurrentSample
+   ? "No completed orders in the current 30-day window"
+   : metric.previousAverageHours > 0
    ? `${fmtDuration(Math.abs(metric.absoluteChangeHours))} ${isImproving ? "faster" : metric.direction === "declining" ? "slower" : "change"}`
    : "No previous window baseline";
 
@@ -514,9 +521,9 @@ function TimingKpiCard({ label, metric, accent, note, loading }) {
      <div style={{ display:"flex", alignItems:"start", justifyContent:"space-between", gap:10 }}>
        <div>
          <div style={{ fontSize:11, fontWeight:700, color:accent.label, letterSpacing:"0.6px", textTransform:"uppercase" }}>{label}</div>
-         {loading ? <Sk w={110} h={30} /> : <div style={{ fontSize:30, fontWeight:800, color:accent.value, lineHeight:1.05, marginTop:6 }}>{fmtDuration(metric.currentAverageHours)}</div>}
+         {loading ? <Sk w={110} h={30} /> : <div style={{ fontSize:30, fontWeight:800, color:accent.value, lineHeight:1.05, marginTop:6 }}>{hasCurrentSample ? fmtDuration(metric.currentAverageHours) : "—"}</div>}
        </div>
-       {!loading && (
+       {!loading && hasCurrentSample && (
          <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"5px 10px", borderRadius:999, background:direction.bg, border:`1px solid ${direction.border}`, color:direction.tone, fontSize:11, fontWeight:700 }}>
            <span>{changeLabel}</span>
            <span>{direction.label}</span>
@@ -528,7 +535,7 @@ function TimingKpiCard({ label, metric, accent, note, loading }) {
          <div style={{ fontSize:12, color:"#334155", fontWeight:600 }}>
            Previous 30 days: <span style={{ color:"#0f172a" }}>{fmtDuration(metric.previousAverageHours)}</span>
          </div>
-         <div style={{ fontSize:11, color:"#64748b" }}>{absoluteCopy} and {direction.subcopy}</div>
+         <div style={{ fontSize:11, color:"#64748b" }}>{absoluteCopy}{hasCurrentSample ? ` and ${direction.subcopy}` : ""}</div>
          <div style={{ fontSize:11, color:"#64748b" }}>{note} · {num(metric.eligibleCount)} eligible completed orders</div>
        </>
      )}
@@ -638,7 +645,7 @@ function TooltipMetricCard({ label, count, amount, tone, loading, onOpenDetails 
 }
 
 
-function FulfillmentOverviewSection({ overview, loading }) {
+function FulfillmentOverviewSection({ overview, loading, overviewError, timingLoading, timingError }) {
  const buckets = overview?.unfulfilledBuckets || [];
  const [detailsOpen, setDetailsOpen] = useState(false);
  const [detailsLoading, setDetailsLoading] = useState(false);
@@ -688,7 +695,7 @@ function FulfillmentOverviewSection({ overview, loading }) {
 
  return (
    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-     <div style={{ background:"#fff", border:"1px solid #e6ebf2", borderRadius:12, padding:18, boxShadow:"0 1px 3px rgba(15,23,42,0.06)" }}>
+     {overviewError ? <div role="alert">{overviewError}</div> : <div style={{ background:"#fff", border:"1px solid #e6ebf2", borderRadius:12, padding:18, boxShadow:"0 1px 3px rgba(15,23,42,0.06)" }}>
        <SectionHeader title="Unfulfilled Orders" subtitle="Fixed rolling windows independent of the dashboard date filter" />
        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))", gap:12 }}>
          {(loading ? Array.from({ length: 5 }, (_, i) => ({ key: i })) : buckets).map((bucket, index) => (
@@ -703,7 +710,7 @@ function FulfillmentOverviewSection({ overview, loading }) {
            />
          ))}
        </div>
-     </div>
+     </div>}
 
 
      {detailsOpen && (
@@ -778,27 +785,28 @@ function FulfillmentOverviewSection({ overview, loading }) {
      )}
 
 
+     {timingError ? <div role="alert" style={{ background:"#fff7ed", color:"#9a3412", borderRadius:10, padding:16 }}>{timingError}</div> : <>
      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))", gap:14 }}>
        <TimingKpiCard
          label="Avg Order to Delivery Time"
          metric={deliveryTiming}
          accent={deliveryAccent}
          note="Shopify order created to delivered status update"
-         loading={loading}
+         loading={timingLoading}
        />
        <TimingKpiCard
          label="Avg Order to Dispatch Time"
          metric={dispatchTiming}
          accent={dispatchAccent}
-         note="Shopify order created to shipment record creation"
-         loading={loading}
+         note="Shopify order created to first courier pickup (shipment creation date fallback)"
+         loading={timingLoading}
        />
      </div>
 
 
      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-       <TimingBucketCard title="Order to Delivery Age Buckets" metric={deliveryTiming} accent={deliveryAccent} loading={loading} />
-       <TimingBucketCard title="Dispatch Age Buckets" metric={dispatchTiming} accent={dispatchAccent} loading={loading} />
+       <TimingBucketCard title="Order to Delivery Age Buckets" metric={deliveryTiming} accent={deliveryAccent} loading={timingLoading} />
+       <TimingBucketCard title="Dispatch Age Buckets" metric={dispatchTiming} accent={dispatchAccent} loading={timingLoading} />
      </div>
 
 
@@ -806,8 +814,9 @@ function FulfillmentOverviewSection({ overview, loading }) {
        title="Fulfillment to Delivery Age Buckets"
        metric={fulfillmentToDeliveryTiming}
        accent={fulfillmentToDeliveryAccent}
-       loading={loading}
+       loading={timingLoading}
      />
+     </>}
    </div>
  );
 }
@@ -1081,6 +1090,10 @@ function SectionHeader({ title, subtitle, badge, children }) {
 /* ── Dashboard Section ── */
 function DashSection({ data, loading }) {
  const d = data || {};
+ const pending = (endpoint) => loading || d._states?.[endpoint] === "pending";
+ const section = (endpoint, title, content) => d._states?.[endpoint] === "rejected"
+   ? <div role="status" style={{ padding:18, background:"#fff7ed", borderRadius:12 }}>{title} could not be loaded. Use Retry to try again.</div>
+   : content;
  return (
    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
      {/* KPI row */}
@@ -1137,8 +1150,8 @@ function DashSection({ data, loading }) {
 
        {/* Col 3: Orders Split + Customer Mix */}
        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-         <OrderSplitCard  data={d} loading={loading} />
-         <CustomerMixCard data={d} loading={loading} />
+         {section("orders", "Orders split", <OrderSplitCard data={d} loading={pending("orders")} />)}
+         {section("first-vs-returning", "Customer mix", <CustomerMixCard data={d} loading={pending("first-vs-returning")} />)}
        </div>
 
 
@@ -1150,14 +1163,14 @@ function DashSection({ data, loading }) {
        <div style={{ padding:"14px 18px", borderBottom:"1px solid #f1f5f9" }}>
          <div style={{ fontWeight:700, fontSize:13, color:"#0f172a" }}>Comprehensive Order Analytics</div>
        </div>
-       <OrderTable data={d} loading={loading} />
+       {section("comprehensive-summary", "Order analytics", <OrderTable data={d} loading={pending("comprehensive-summary")} />)}
      </div>
 
 
      {/* Bottom cards */}
      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-       <CustomersCard   data={d} loading={loading} />
-       <EscalationsCard data={d} loading={loading} />
+       {section("customer-stats", "Customers", <CustomersCard data={d} loading={pending("customer-stats")} />)}
+       {section("escalations", "Escalations", <EscalationsCard data={d} loading={pending("escalations")} />)}
      </div>
    </div>
  );
@@ -1174,6 +1187,8 @@ export default function SuperAdminDashboard() {
  const [overview, setOverview] = useState({});
  const [overviewLoading, setOverviewLoading] = useState(true);
  const [overviewError, setOverviewError] = useState("");
+ const [timingLoading, setTimingLoading] = useState(true);
+ const [timingError, setTimingError] = useState("");
  const [range,   setRange]   = useState("Last 30 Days");
  const [csStart, setCsStart] = useState("");
  const [csEnd,   setCsEnd]   = useState("");
@@ -1189,7 +1204,12 @@ export default function SuperAdminDashboard() {
    setLoading(true);
    setData(null);
    setLoadError("");
-   fetchSection(start, end, reloadToken)
+   fetchSection(start, end, reloadToken, (partial) => {
+     if (!mounted || currentRequestId !== requestId.current) return;
+     setData(partial);
+     setLoading(false);
+     setLoadError(partial._loadWarning || "");
+   })
      .then((d) => {
        if (!mounted || currentRequestId !== requestId.current) return;
        setData(d);
@@ -1209,24 +1229,23 @@ export default function SuperAdminDashboard() {
 
  useEffect(() => {
    let mounted = true;
+   setOverview({});
    setOverviewLoading(true);
-   fetchFulfillmentOverview()
-     .then((payload) => {
-       if (!mounted) return;
-       setOverview(payload);
-       setOverviewError("");
-       setOverviewLoading(false);
+   setTimingLoading(true);
+   setOverviewError("");
+   setTimingError("");
+   fetchFulfillmentOverview(reloadToken)
+     .then((payload) => { if (mounted) setOverview((current) => ({ ...current, ...payload })); })
+     .catch(() => { if (mounted) setOverviewError("Unfulfilled order summary is unavailable. Please retry."); })
+     .finally(() => { if (mounted) setOverviewLoading(false); });
+   fetchShiptrackTimingOverview(reloadToken)
+     .then((payload) => { if (mounted) setOverview((current) => ({ ...current, ...payload })); })
+     .catch((error) => {
+       if (mounted) setTimingError(error.response?.data?.details || "Delivery timing could not be loaded. Please retry.");
      })
-     .catch(() => {
-       if (!mounted) return;
-       setOverview({});
-       setOverviewError("Fulfillment overview data is unavailable right now.");
-       setOverviewLoading(false);
-     });
-   return () => {
-     mounted = false;
-   };
- }, []);
+     .finally(() => { if (mounted) setTimingLoading(false); });
+   return () => { mounted = false; };
+ }, [reloadToken]);
 
 
  const dateLabel = (() => {
@@ -1255,11 +1274,8 @@ export default function SuperAdminDashboard() {
          )}
          {(data !== null || loading) && <DashSection data={data || {}} loading={loading} />}
          <div style={{ marginTop: 18 }}>
-           {overviewError ? (
-             <div role="status" style={{ background:"#fff7ed", border:"1px solid #fdba74", color:"#9a3412", borderRadius:10, padding:"14px 18px" }}>
-               {overviewError} The fulfillment panel is not replacing missing data with zeros.
-             </div>
-           ) : <FulfillmentOverviewSection overview={overview} loading={overviewLoading} />}
+           <FulfillmentOverviewSection overview={overview} loading={overviewLoading} overviewError={overviewError} timingLoading={timingLoading} timingError={timingError} />
+           {(overviewError || timingError) && <button type="button" onClick={() => setReloadToken((value) => value + 1)} style={{ marginTop:10, padding:"8px 14px", cursor:"pointer" }}>Retry fulfillment data</button>}
          </div>
        </section>
      </div>
