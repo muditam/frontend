@@ -26,7 +26,8 @@ function renderCard(value) {
 
 test("renders goal and sourced facts while keeping the script and outcomes", () => {
   const card = renderCard(brief);
-  expect(card.querySelectorAll(".cb-lines")).toHaveLength(0);
+  expect(card.querySelectorAll(".cb-lines dd")).toHaveLength(1);
+  expect(card.querySelector(".cb-lines dd").textContent).toBe(brief.lines.nextStep.text);
   expect(card.querySelector(".cb-goal").textContent).toContain(brief.goal);
   expect(card.querySelector(".cb-fact").textContent).toContain("Payment pending");
   expect(card.querySelector(".cb-fact small").textContent).toContain("Order · 17 Nov");
@@ -43,7 +44,11 @@ test("keeps the goal visible when low confidence hides the script", () => {
 
 test("shows a refresh hint for older cards without goal or facts", () => {
   const card = renderCard({ ...brief, goal: undefined, glance: undefined });
-  expect(card.querySelector(".cb-goal").textContent).toContain("Refresh the call brief");
+  expect(card.querySelector(".cb-goal")).toBeNull();
+  expect(Array.from(card.querySelectorAll("dt"), node => node.textContent)).toEqual(["Situation", "Next step", "Trust"]);
+  expect(Array.from(card.querySelectorAll("dd"), node => node.textContent)).toEqual([
+    brief.lines.situation.text, brief.lines.nextStep.text, brief.lines.trust.text,
+  ]);
   expect(card.querySelectorAll(".cb-fact")).toHaveLength(0);
   expect(renderCard(null).innerHTML).toBe("");
 });
