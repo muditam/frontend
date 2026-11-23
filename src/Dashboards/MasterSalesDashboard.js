@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { managerShipmentGroup } from "../utils/managerShipmentGroup";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   Box,
   Typography,
@@ -112,12 +113,12 @@ const fmt2 = (n) => Number(n ?? 0).toLocaleString("en-IN", { maximumFractionDigi
 // -------------------------------------------
 // Cache helpers
 // -------------------------------------------
-const cacheGet = (key) => {
+const cacheGet = (key, ttlMs = CACHE_TTL_MS) => {
   try {
     const raw = sessionStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed?.ts || Date.now() - parsed.ts > CACHE_TTL_MS) { sessionStorage.removeItem(key); return null; }
+    if (!parsed?.ts || Date.now() - parsed.ts > ttlMs) { sessionStorage.removeItem(key); return null; }
     return parsed.data ?? null;
   } catch { return null; }
 };
@@ -146,26 +147,26 @@ const SHIPMENT_CARD_DEFS = [
     key: "delivered", label: "Delivered",
     color: "#16A34A", bg: "#F0FDF4", border: "#BBF7D0",
     icon: <LocalShipping sx={{ fontSize: 20 }} />,
-    match: (cat) => cat.toLowerCase().includes("delivered") && !cat.toLowerCase().includes("rto"),
+    match: (cat) => managerShipmentGroup(cat) === "delivered",
   },
   {
     key: "in_transit", label: "In Transit",
     color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE",
     icon: <DirectionsBike sx={{ fontSize: 20 }} />,
-    match: (cat) => cat.toLowerCase().includes("transit"),
+    match: (cat) => managerShipmentGroup(cat) === "in_transit",
   },
   // ✅ New Card Definition
   {
     key: "out_for_delivery", label: "Out for Delivery",
     color: "#7C3AED", bg: "#F5F3FF", border: "#DDD6FE",
     icon: <Schedule sx={{ fontSize: 20 }} />,
-    match: (cat) => cat.toLowerCase().includes("out for delivery"),
+    match: (cat) => managerShipmentGroup(cat) === "out_for_delivery",
   },
   {
     key: "rto", label: "RTO",
     color: "#DC2626", bg: "#FEF2F2", border: "#FECACA",
     icon: <AssignmentReturn sx={{ fontSize: 20 }} />,
-    match: (cat) => cat.toLowerCase().includes("rto"),
+    match: (cat) => ["rto", "rto_delivered"].includes(managerShipmentGroup(cat)),
   },
 ];
 const ShipmentCard = ({ label, icon, color, count, amount, percentage, loading }) => (
@@ -239,6 +240,8 @@ const ManagerSalesDashboard = () => {
 
   // Shipment — own state, own filter
   const [shipmentLoading, setShipmentLoading] = useState(false);
+  const [shipmentError, setShipmentError] = useState("");
+  const shipmentRequestId = useRef(0);
   const [shipmentData, setShipmentData] = useState([]);
   const [showOtherShipments, setShowOtherShipments] = useState(false);
 
@@ -420,10 +423,12 @@ const ManagerSalesDashboard = () => {
   // ✅ Fetch: Shipment — triggered ONLY by shipmentAgentFilter
   // -------------------------------------------
   const fetchShipmentData = useCallback(async (startDate, endDate, agentName) => {
+    const requestId = ++shipmentRequestId.current;
+    setShipmentError("");
     const agentKey = agentName && agentName !== "All Agents" ? agentName : "ALL";
-    const cacheKey = `msd:ship:${startDate}:${endDate}:${agentKey}`;
-    const cached = cacheGet(cacheKey);
-    if (cached) { setShipmentData(cached); return; }
+    const cacheKey = `msd:ship:v2:${startDate}:${endDate}:${agentKey}`;
+    const cached = cacheGet(cacheKey, 60_000);
+    if (cached) { setShipmentData(cached); setShipmentLoading(false); return; }
     setShipmentLoading(true);
     try {
       const params = { startDate, endDate };
@@ -432,9 +437,13 @@ const ManagerSalesDashboard = () => {
         params,
         withCredentials: true,
       });
+      if (requestId !== shipmentRequestId.current) return;
       const list = res.data || [];
       setShipmentData(list); cacheSet(cacheKey, list);
-    } catch { setShipmentData([]); } finally { setShipmentLoading(false); }
+    } catch {
+      if (requestId !== shipmentRequestId.current) return;
+      setShipmentData([]); setShipmentError("Shipment statuses could not be loaded. Please retry.");
+    } finally { if (requestId === shipmentRequestId.current) setShipmentLoading(false); }
   }, []);
 
 
@@ -702,7 +711,7 @@ const ManagerSalesDashboard = () => {
             </Select>
           </FormControl>
         </Box>
-        <Grid container spacing={1.5}>
+        {shipmentError ? <Typography role="alert" color="error">{shipmentError} <Button onClick={() => fetchShipmentData(effectiveStart, effectiveEnd, shipmentAgentFilter)}>Retry</Button></Typography> : <Grid container spacing={1.5}>
           {shipmentCards.cards.map((card) => (
             <Grid key={card.key} item xs={12} sm={6} md={2.4}>
               <ShipmentCard {...card} loading={shipmentLoading} />
@@ -736,10 +745,9 @@ const ManagerSalesDashboard = () => {
               </Box>
             </Box>
           </Grid>
-        </Grid>
+        </Grid>}
 
-
-        {showOtherShipments && shipmentCards.otherRows.length > 0 && (
+        {!shipmentError && showOtherShipments && shipmentCards.otherRows.length > 0 && (
           <Box sx={{ mt: 2 }}>
             <Divider sx={{ mb: 1.5 }} />
             <Typography variant="body2" sx={{ fontWeight: 800, color: "#64748B", mb: 1, textTransform: "uppercase", letterSpacing: "0.5px" }}>Other — Breakdown</Typography>

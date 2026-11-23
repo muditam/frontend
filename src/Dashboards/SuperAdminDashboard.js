@@ -8,6 +8,8 @@ const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const ANALYTICS = `${API_BASE}/api/super-admin/analytics`;
 const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
 const FULFILLMENT_CACHE_TTL_MS = 2 * 60 * 1000;
+const UNFULFILLED_CACHE_TTL_MS = 30 * 1000;
+const indiaDateKey = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
 
 
 /* ── utils ── */
@@ -295,12 +297,12 @@ function mapSectionResults(results) {
 
 
 async function fetchFulfillmentOverview(refreshKey = 0) {
- return getCachedData(`super-admin:fulfillment-overview:${refreshKey}`, async () => {
+ return getCachedData(`super-admin:fulfillment-overview:${indiaDateKey()}:${refreshKey}`, async () => {
    const { data } = await axios.get(`${ANALYTICS}/dashboard-fulfillment-overview`, {
      withCredentials: true,
    });
    return data || {};
- }, FULFILLMENT_CACHE_TTL_MS);
+ }, UNFULFILLED_CACHE_TTL_MS);
 }
 
 async function fetchShiptrackTimingOverview(refreshKey = 0) {
@@ -313,14 +315,14 @@ async function fetchShiptrackTimingOverview(refreshKey = 0) {
 }
 
 
-async function fetchUnfulfilledOrdersByBucket(bucketKey) {
- return getCachedData(`super-admin:fulfillment-orders:${bucketKey}`, async () => {
+async function fetchUnfulfilledOrdersByBucket(bucketKey, snapshotKey) {
+ return getCachedData(`super-admin:fulfillment-orders:${indiaDateKey()}:${bucketKey}:${snapshotKey || ""}`, async () => {
    const { data } = await axios.get(`${ANALYTICS}/dashboard-fulfillment-orders`, {
      params: { bucketKey },
      withCredentials: true,
    });
    return data || {};
- }, FULFILLMENT_CACHE_TTL_MS);
+ }, UNFULFILLED_CACHE_TTL_MS);
 }
 
 
@@ -652,6 +654,8 @@ function FulfillmentOverviewSection({ overview, loading, overviewError, timingLo
  const [detailsTitle, setDetailsTitle] = useState("");
  const [detailsRows, setDetailsRows] = useState([]);
  const [detailsTotal, setDetailsTotal] = useState(0);
+ const [detailsError, setDetailsError] = useState("");
+ const detailsRequest = useRef(0);
  const dispatchTiming = normalizeTimingMetric(overview?.dispatchTiming, overview?.avgOrderToDispatchHours);
  const deliveryTiming = normalizeTimingMetric(overview?.deliveryTiming, overview?.avgOrderToDeliveryHours);
  const fulfillmentToDeliveryTiming = normalizeTimingMetric(
@@ -671,24 +675,29 @@ function FulfillmentOverviewSection({ overview, loading, overviewError, timingLo
  const fulfillmentToDeliveryAccent = { bg:"#ecfeff", border:"#a5f3fc", label:"#0f766e", value:"#115e59" };
  const handleOpenDetails = async (bucket) => {
    if (!bucket?.key) return;
+   const requestId = ++detailsRequest.current;
    setDetailsOpen(true);
+   setDetailsError("");
    setDetailsLoading(true);
    setDetailsRows([]);
    setDetailsTotal(0);
    setDetailsTitle(bucket.label || "Unfulfilled Orders");
    try {
-     const payload = await fetchUnfulfilledOrdersByBucket(bucket.key);
+     const payload = await fetchUnfulfilledOrdersByBucket(bucket.key, overview?.generatedAt);
+     if (requestId !== detailsRequest.current) return;
      setDetailsRows(Array.isArray(payload?.orders) ? payload.orders : []);
      setDetailsTotal(Number(payload?.total || 0));
      if (payload?.bucket?.label) {
        setDetailsTitle(payload.bucket.label);
      }
    } catch (err) {
+     if (requestId !== detailsRequest.current) return;
+     setDetailsError("Could not load unfulfilled orders. Please close and retry.");
      console.error("Unfulfilled details fetch error:", err);
      setDetailsRows([]);
      setDetailsTotal(0);
    } finally {
-     setDetailsLoading(false);
+     if (requestId === detailsRequest.current) setDetailsLoading(false);
    }
  };
 
@@ -696,7 +705,7 @@ function FulfillmentOverviewSection({ overview, loading, overviewError, timingLo
  return (
    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
      {overviewError ? <div role="alert">{overviewError}</div> : <div style={{ background:"#fff", border:"1px solid #e6ebf2", borderRadius:12, padding:18, boxShadow:"0 1px 3px rgba(15,23,42,0.06)" }}>
-       <SectionHeader title="Unfulfilled Orders" subtitle="Fixed rolling windows independent of the dashboard date filter" />
+       <SectionHeader title="Unfulfilled Orders" subtitle="Rolling IST date windows • Cancelled and fulfilled orders excluded" />
        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))", gap:12 }}>
          {(loading ? Array.from({ length: 5 }, (_, i) => ({ key: i })) : buckets).map((bucket, index) => (
            <TooltipMetricCard
@@ -744,7 +753,7 @@ function FulfillmentOverviewSection({ overview, loading, overviewError, timingLo
            <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
              <div>
                <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>{detailsTitle} - Unfulfilled Order Details</div>
-               <div style={{ fontSize: 12, color: "#64748b" }}>Total: {num(detailsTotal)}</div>
+               <div style={{ fontSize: 12, color: "#64748b" }}>{detailsLoading || detailsError ? "" : `Total: ${num(detailsTotal)}`}</div>
              </div>
              <button
                type="button"
@@ -755,7 +764,7 @@ function FulfillmentOverviewSection({ overview, loading, overviewError, timingLo
              </button>
            </div>
            <div style={{ overflow: "auto", padding: 12 }}>
-             {detailsLoading ? (
+             {detailsError ? <div role="alert" style={{ padding: 10, color: "#b91c1c" }}>{detailsError}</div> : detailsLoading ? (
                <div style={{ padding: 10 }}><Sk w={260} h={20} /></div>
              ) : (
                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
