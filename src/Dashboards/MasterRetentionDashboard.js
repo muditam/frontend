@@ -1,3 +1,4 @@
+import { managerShipmentGroup } from "../utils/managerShipmentGroup";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
@@ -166,13 +167,13 @@ const fmt2 = (n) =>
 
 
 
-const cacheGet = (key) => {
+const cacheGet = (key, ttlMs = CACHE_TTL_MS) => {
   try {
     const raw = sessionStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed?.ts) return null;
-    if (Date.now() - parsed.ts > CACHE_TTL_MS) {
+    if (Date.now() - parsed.ts > ttlMs) {
       sessionStorage.removeItem(key);
       return null;
     }
@@ -262,9 +263,7 @@ const SHIPMENT_CARD_DEFS = [
     label: "Delivered",
     color: "#16A34A",
     icon: <LocalShipping sx={{ fontSize: 20 }} />,
-    match: (cat) =>
-      String(cat).toLowerCase().includes("delivered") &&
-      !String(cat).toLowerCase().includes("rto"),
+    match: (cat) => managerShipmentGroup(cat) === "delivered",
   },
   {
     key: "rto",
@@ -395,9 +394,13 @@ const ManagerRetentionDashboard = () => {
   const [activityTableLoading, setActivityTableLoading] = useState(false);
   const [followupLoading, setFollowupLoading] = useState(false);
   const [shipmentLoading, setShipmentLoading] = useState(false);
+  const [shipmentError, setShipmentError] = useState("");
+  const shipmentRequestId = useRef(0);
   const [reachoutLoading, setReachoutLoading] = useState(false);
   const [codLoading, setCodLoading] = useState(false);
   const [agentShipmentLoading, setAgentShipmentLoading] = useState(false);
+  const [agentShipmentError, setAgentShipmentError] = useState("");
+  const agentShipmentRequestId = useRef(0);
 
 
   const [healthExperts, setHealthExperts] = useState([]);
@@ -726,40 +729,50 @@ const ManagerRetentionDashboard = () => {
   // 4) Shipment
   // -------------------------------------------
   const fetchShipmentSummary = useCallback(async (startDate, endDate) => {
-    const cacheKey = `mrd:ship:${startDate}:${endDate}`;
-    const cached = cacheGet(cacheKey);
-    if (cached) { setShipmentSummary(cached); return; }
+    const requestId = ++shipmentRequestId.current;
+    setShipmentError("");
+    const cacheKey = `mrd:ship:v2:${startDate}:${endDate}`;
+    const cached = cacheGet(cacheKey, 60_000);
+    if (cached) { setShipmentSummary(cached); setShipmentLoading(false); return; }
     setShipmentLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/api/retention-sales/shipment-summary`, { params: { startDate, endDate } });
+      if (requestId !== shipmentRequestId.current) return;
       const list = res.data || [];
       setShipmentSummary(list);
       cacheSet(cacheKey, list);
     } catch (e) {
+      if (requestId !== shipmentRequestId.current) return;
+      setShipmentError("Shipment statuses could not be loaded. Please retry.");
       console.error("Error fetching shipment summary:", e);
       setShipmentSummary([]);
     } finally {
-      setShipmentLoading(false);
+      if (requestId === shipmentRequestId.current) setShipmentLoading(false);
     }
   }, []);
 
 
   const fetchAgentShipment = useCallback(async (healthExpertName, startDate, endDate) => {
-    if (!healthExpertName) { setAgentShipmentSummary([]); return; }
-    const cacheKey = `mrd:shipAgent:${healthExpertName}:${startDate}:${endDate}`;
-    const cached = cacheGet(cacheKey);
-    if (cached) { setAgentShipmentSummary(cached); return; }
+    const requestId = ++agentShipmentRequestId.current;
+    setAgentShipmentError("");
+    if (!healthExpertName) { setAgentShipmentSummary([]); setAgentShipmentLoading(false); return; }
+    const cacheKey = `mrd:shipAgent:v2:${healthExpertName}:${startDate}:${endDate}`;
+    const cached = cacheGet(cacheKey, 60_000);
+    if (cached) { setAgentShipmentSummary(cached); setAgentShipmentLoading(false); return; }
     setAgentShipmentLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/api/retention-sales/shipment-summary/agent`, { params: { agentName: healthExpertName, startDate, endDate } });
+      if (requestId !== agentShipmentRequestId.current) return;
       const list = res.data || [];
       setAgentShipmentSummary(list);
       cacheSet(cacheKey, list);
     } catch (e) {
+      if (requestId !== agentShipmentRequestId.current) return;
+      setAgentShipmentError("Shipment statuses could not be loaded. Please retry.");
       console.error("Error fetching agent shipment:", e);
       setAgentShipmentSummary([]);
     } finally {
-      setAgentShipmentLoading(false);
+      if (requestId === agentShipmentRequestId.current) setAgentShipmentLoading(false);
     }
   }, []);
 
@@ -1288,7 +1301,7 @@ const ManagerRetentionDashboard = () => {
         <Divider sx={{ my: 2 }} />
 
         {/* ✅ 5 cards in one row without overflow */}
-        <Grid
+        {shipmentError ? <Typography role="alert" color="error">{shipmentError} <Button onClick={() => fetchShipmentSummary(effectiveStart, effectiveEnd)}>Retry</Button></Typography> : <Grid
           container
           spacing={1.5}
           sx={{ width: "100%", m: 0 }}
@@ -1355,10 +1368,10 @@ const ManagerRetentionDashboard = () => {
               )}
             </Box>
           </Grid>
-        </Grid>
+        </Grid>}
 
         {/* OTHER breakdown table (only when expanded) */}
-        {showOtherShipments && (
+        {!shipmentError && showOtherShipments && (
           <Box sx={{ mt: 2 }}>
             <Divider sx={{ mb: 1.5 }} />
             <Typography
@@ -1506,6 +1519,7 @@ const ManagerRetentionDashboard = () => {
               </TableHead>
 
               <TableBody>
+                {agentShipmentError && <TableRow><TableCell colSpan={4}><Typography role="alert" color="error">{agentShipmentError} <Button onClick={() => fetchAgentShipment(selectedHealthExpert, effectiveStart, effectiveEnd)}>Retry</Button></Typography></TableCell></TableRow>}
                 {agentShipmentLoading && (
                   <TableRow>
                     <TableCell colSpan={4} sx={{ p: 0 }}>
@@ -1522,7 +1536,7 @@ const ManagerRetentionDashboard = () => {
                   </TableRow>
                 )}
 
-                {!agentShipmentLoading && selectedHealthExpert && (agentShipmentSummary || []).length === 0 && (
+                {!agentShipmentError && !agentShipmentLoading && selectedHealthExpert && (agentShipmentSummary || []).length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4} align="center" sx={{ py: 2, color: "#64748B" }}>
                       No shipment data for this Health Expert.
