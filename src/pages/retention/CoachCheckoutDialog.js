@@ -13,7 +13,6 @@ export default function CoachCheckoutDialog({ lead, onClose, onSaved }) {
   const [data, setData] = useState(null);
   const [step, setStep] = useState(0);
   const [variantId, setVariantId] = useState('');
-  const [withoutBloodTest, setWithoutBloodTest] = useState(false);
   const [paymentId, setPaymentId] = useState('');
   const [generatingLink, setGeneratingLink] = useState(false);
   const [paymentLink, setPaymentLink] = useState(null);
@@ -41,8 +40,7 @@ export default function CoachCheckoutDialog({ lead, onClose, onSaved }) {
   }, [lead._id]);
   useEffect(() => { mounted.current = true; load(); return () => { mounted.current = false; }; }, [load]);
   const variant = data?.product?.variants?.find(item => item.id === variantId);
-  const discount = withoutBloodTest ? (data?.discountWithoutBloodTest || 0) : 0;
-  const total = Math.round((Number(variant?.price || 0) - discount) * 100) / 100;
+  const total = Number(data?.coachPrice || 0);
   const validCustomer = Boolean(data?.customer || (customer.firstName.trim() && (!customer.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email))));
   const resetLink = () => {
     if (paymentLink) setLinkMessage('Amount changed. Generate a new link below; do not use the previous link.');
@@ -54,7 +52,7 @@ export default function CoachCheckoutDialog({ lead, onClose, onSaved }) {
     try {
       linkRequestId.current ||= window.crypto.randomUUID();
       const { data: response } = await api.post(`/api/health-expert/leads/${lead._id}/coach-payment-link`, {
-        requestId: linkRequestId.current, variantId, withoutBloodTest, expectedTotal: total,
+        requestId: linkRequestId.current, variantId, expectedTotal: total,
       });
       if (mounted.current) setPaymentLink(response);
     } catch (err) {
@@ -70,7 +68,7 @@ export default function CoachCheckoutDialog({ lead, onClose, onSaved }) {
     busy.current = true; setSaving(true); setError('');
     try {
       const { data: response } = await api.post(`/api/health-expert/leads/${lead._id}/coach-purchase`, {
-        paymentMode: 'Prepaid', paymentId: paymentId.trim(), variantId, withoutBloodTest, expectedTotal: total, customer,
+        paymentMode: 'Prepaid', paymentId: paymentId.trim(), variantId, expectedTotal: total, customer,
       });
       if (mounted.current) { setCompleted(response.item); onSaved(response.item); }
     } catch (err) {
@@ -109,10 +107,8 @@ export default function CoachCheckoutDialog({ lead, onClose, onSaved }) {
               </Stack> : <Stack spacing={2}>
                 <Typography fontWeight={600}>{data.product.title}</Typography>
                 {data.product.variants.length > 1 && <TextField select label="Coach option" size="small" value={variantId} disabled={saving || generatingLink} onChange={e => { setVariantId(e.target.value); resetLink(); }}>{data.product.variants.map(item => <MenuItem key={item.id} value={item.id}>{item.title}</MenuItem>)}</TextField>}
-                <FormControlLabel control={<Checkbox checked={withoutBloodTest} disabled={saving || generatingLink} onChange={e => { setWithoutBloodTest(e.target.checked); resetLink(); }} />} label="Without blood test — ₹1,000 discount" />
                 <Box sx={{ p: 2, bgcolor: '#f6f8fc', borderRadius: 2 }}>
-                  <Stack direction="row" justifyContent="space-between"><Typography>Product price</Typography><Typography>{rupees(variant?.price)}</Typography></Stack>
-                  <Stack direction="row" justifyContent="space-between"><Typography>Discount</Typography><Typography>−{rupees(discount)}</Typography></Stack>
+                  <Stack direction="row" justifyContent="space-between"><Typography>Product price</Typography><Typography>{rupees(total)}</Typography></Stack>
                   <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}><Typography fontWeight={700}>Amount paid</Typography><Typography fontWeight={700}>{rupees(total)}</Typography></Stack>
                 </Box>
                 <TextField label="Payment option" size="small" value="Prepaid" InputProps={{ readOnly: true }} />
