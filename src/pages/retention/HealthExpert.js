@@ -50,6 +50,7 @@ export default function HealthExpert() {
   const [followup, setFollowup] = useState('');
   const [callOutcome, setCallOutcome] = useState('');
   const [showOutcomeFilters, setShowOutcomeFilters] = useState(false);
+  const outcomeFilterRef = useRef(null);
   const [listRevision, setListRevision] = useState(0);
   const listRef = useRef(null);
   const sentinelRef = useRef(null);
@@ -68,6 +69,21 @@ export default function HealthExpert() {
   const [calling, setCalling] = useState(false);
   const [callTrackingMessage, setCallTrackingMessage] = useState('');
   const callBusy = useRef(false);
+  useEffect(() => {
+    if (!showOutcomeFilters) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!outcomeFilterRef.current?.contains(event.target)) setShowOutcomeFilters(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setShowOutcomeFilters(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick, true);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick, true);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [showOutcomeFilters]);
   useEffect(() => {
     const timer = setTimeout(() => { setQuery(search.trim()); }, 300);
     return () => clearTimeout(timer);
@@ -170,7 +186,7 @@ export default function HealthExpert() {
     <div className="he-layout">
       <aside className="he-sidebar">
         <div className="he-between"><h2>Customers</h2><span className="he-pill">{loading && !result.items.length ? '…' : result.total.toLocaleString('en-IN')}</span></div>
-        <div className="he-search-row"><input className="he-search" aria-label="Search customers by name or phone" placeholder="Search name or phone…" value={search} onChange={(event) => setSearch(event.target.value)} /><div className="he-filter-anchor"><button type="button" className={`he-filter-toggle${showOutcomeFilters ? ' selected' : ''}`} aria-label="Filter by call outcome" aria-expanded={showOutcomeFilters} onClick={() => setShowOutcomeFilters((value) => !value)}><FilterListIcon fontSize="small" /></button>
+        <div className="he-search-row"><input className="he-search" aria-label="Search customers by name or phone" placeholder="Search name or phone…" value={search} onChange={(event) => setSearch(event.target.value)} /><div className="he-filter-anchor" ref={outcomeFilterRef}><button type="button" className={`he-filter-toggle${showOutcomeFilters ? ' selected' : ''}`} aria-label="Filter by call outcome" aria-expanded={showOutcomeFilters} onClick={() => setShowOutcomeFilters((value) => !value)}><FilterListIcon fontSize="small" /></button>
         {showOutcomeFilters && <div className="he-outcome-popover" aria-label="Filter by call outcome"><small className="he-filter-label">Call outcome</small><div className="he-filters he-outcome-filters">
           {[
             ['', 'All outcomes'],
@@ -210,9 +226,13 @@ export default function HealthExpert() {
           <div className="he-role-note"><span className="he-pill he-blue">{{ sales: 'Sales Expert view', retention: 'Retention Agent view', doctor: 'Doctor view' }[access.view] || 'Read only'}</span></div>
           <nav className="he-tabs" aria-label="Customer sections">{tabs.map((value) => <button key={value} aria-pressed={tab === value} className={tab === value ? 'selected' : ''} onClick={() => setTab(value)}>{value}</button>)}</nav>
           {tab === tabs[0] && <SalesPanel lead={lead} display={display} onSaved={(item) => {
+            const previousOutcome = lead.healthExpertOutreach?.current?.outcome || '';
+            const nextOutcome = item.healthExpertOutreach?.current?.outcome ?? previousOutcome;
+            const previousFollowup = lead.rtNextFollowupDate || '';
+            const nextFollowup = item.rtNextFollowupDate ?? previousFollowup;
             setResult((current) => ({ ...current, items: current.items.map((row) => row._id === item._id ? { ...row, ...item } : row) }));
-            if (callOutcome) setListRevision((value) => value + 1);
-            if (followup && item.rtNextFollowupDate !== undefined && item.rtNextFollowupDate !== lead.rtNextFollowupDate) setListRevision((value) => value + 1);
+            if (callOutcome && nextOutcome !== previousOutcome) setListRevision((value) => value + 1);
+            if (followup && nextFollowup !== previousFollowup) setListRevision((value) => value + 1);
           }} />}
           {tab === tabs[1] && !access.canViewHealth && <ClinicalSummary type="doctor" lead={lead} />}
           {tab === tabs[1] && access.canViewHealth && <DoctorWorkspace key={lead._id} lead={lead} onSaved={(item) => setResult((current) => ({ ...current, items: current.items.map((row) => row._id === item._id ? { ...row, ...item } : row) }))} />}
