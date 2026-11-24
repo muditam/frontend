@@ -456,6 +456,10 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
            "Content-Type": data.contentType || file.type,
            "x-amz-acl": "public-read",
          },
+         // The app enables credentials globally for LMS API requests. Wasabi is
+         // a separate origin and rejects credentialed CORS uploads, so this
+         // signed PUT must explicitly omit browser credentials.
+         withCredentials: false,
          maxContentLength: Infinity,
          maxBodyLength: Infinity,
        });
