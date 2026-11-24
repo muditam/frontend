@@ -32,9 +32,7 @@ export default function CallBriefCard({ brief, onLog, onRefresh }) {
   if (!brief) return null;
   const meta = DECISION_META[brief.decision] || DECISION_META.CALL_NOW;
   const showScript = brief.decision !== "DO_NOT_CALL" && brief.confidence !== "low";
-  const shipmentTime = shipment => Math.max(...[shipment.latestEventAt, shipment.sourceUpdatedAt]
-    .map(value => Date.parse(value) || 0));
-  const latestShipment = [...(brief.shipments || [])].sort((a, b) => shipmentTime(b) - shipmentTime(a))[0];
+  const callFacts = (brief.glance || []).filter(fact => !/^order\b/i.test(String(fact.source || "").trim()));
 
   const copyOpener = async () => {
     try {
@@ -76,9 +74,9 @@ export default function CallBriefCard({ brief, onLog, onRefresh }) {
         {brief.goal?.trim() && brief.lines?.nextStep?.text?.trim() && (
           <dl className="cb-lines"><div className="cb-line"><dt>Next step</dt><dd>{brief.lines.nextStep.text.trim()}</dd></div></dl>
         )}
-        {brief.glance?.length > 0 && (
+        {callFacts.length > 0 && (
           <div className="cb-glance">
-            {brief.glance.slice(0, 3).map((fact, index) => (
+            {callFacts.slice(0, 3).map((fact, index) => (
               <div className="cb-fact" key={index}>
                 <strong>{fact.text}</strong>
                 <small>{fact.source}{fact.date ? ` · ${shortDate(fact.date)}` : ""}</small>
@@ -101,20 +99,6 @@ export default function CallBriefCard({ brief, onLog, onRefresh }) {
         {brief.confidence === "low" && (
           <div className="cb-warn">Card not reliable{brief.gaps?.length ? `: ${brief.gaps.join(", ")}` : ""}. Check the lead history before calling.</div>
         )}
-        {latestShipment && <div className="cb-shipments">
-          <p>{latestShipment.orderId} · {latestShipment.status || "Tracking unavailable"}{latestShipment.stale ? " · May be stale" : ""}</p>
-          <details><summary>Shipment details and events</summary>
-          {brief.shipments.map((shipment, index) => <div className="cb-fact" key={shipment.orderId || index}>
-            <strong>{shipment.orderId} · {shipment.status || "Tracking unavailable"}</strong>
-            <small>{shipment.trackingNumber}{shipment.latestEventAt ? ` · Latest event ${timeOf(shipment.latestEventAt)}` : " · Event time unavailable"}</small>
-            <small>Source updated: {timeOf(shipment.sourceUpdatedAt) || "Unknown"} · Fetched: {timeOf(shipment.fetchedAt) || "Unknown"}</small>
-            {shipment.stale && <div className="cb-warn">Tracking may be stale. Confirm the latest delivery status before advising the patient.</div>}
-            {shipment.events?.length > 0 && <details><summary>Tracking events</summary>
-              {shipment.events.map((event, i) => <p key={i}>{event.status} · {timeOf(event.eventAt) || "Time unknown"}{event.location ? ` · ${event.location}` : ""}{event.remarks ? ` · ${event.remarks}` : ""}</p>)}
-            </details>}
-          </div>)}
-          </details>
-        </div>}
       </section>
 
       {showScript && (
