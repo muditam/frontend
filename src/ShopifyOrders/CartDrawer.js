@@ -175,6 +175,7 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
   const dispatch = useDispatch();
   const checkoutApiOrigin = repunchSource ? API_ORIGIN : "https://muditamleads-14f32a10d7f7.herokuapp.com";
   const [repunchError, setRepunchError] = useState("");
+  const [transactionIdError, setTransactionIdError] = useState("");
   const [repunchLocked, setRepunchLocked] = useState(false);
   const [prefillWarning, setPrefillWarning] = useState("");
   const repunchPrefilled = React.useRef(false);
@@ -486,6 +487,10 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
     if (discountType === "amount") {
       discountAmount = numericValue;
     } else if (discountType === "percentage") {
+      // Keep the exact percentage. Rounding here would record a discount that
+      // does not tie back to the agreed rate in accounting. A fractional total
+      // is fine: collect it through the app-generated payment link so the
+      // captured amount matches it to the paisa.
       discountAmount = (subTotal * numericValue) / 100;
     }
     dispatch(setAppliedDiscount(discountAmount));
@@ -907,6 +912,7 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
       setRepunchError("");
       onBusyChange?.(true);
     }
+    setTransactionIdError("");
     setIsOrderLoading(true);
 
     const shippingAddress = {
@@ -1024,6 +1030,20 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
         setRepunchError(error.response?.data?.message || "Unable to confirm the repunch. Refresh the order list before trying again.");
         if (!error.response || error.response.status === 409 || error.response.status >= 500) setRepunchLocked(true);
         onRepunchError?.();
+      } else {
+        // Surface the server's reason. Without this the drawer failed silently
+        // and agents saw nothing but a console error.
+        const serverMessage =
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          error.message;
+        // Shown inline under the Transaction ID field, which is what the agent
+        // has to change. No banner.
+        setTransactionIdError(
+          typeof serverMessage === "string" && serverMessage.trim()
+            ? serverMessage
+            : "Unable to create the order. Please retry, and do not submit the same payment twice."
+        );
       }
     } finally {
       setIsOrderLoading(false);
@@ -2338,13 +2358,16 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
                         variant="outlined"
                         fullWidth
                         value={transactionId}
-                        onChange={(e) =>
+                        error={Boolean(transactionIdError)}
+                        helperText={transactionIdError || " "}
+                        onChange={(e) => {
+                          if (transactionIdError) setTransactionIdError("");
                           dispatch(
                             setTransactionId(
                               e.target.value
                             )
-                          )
-                        }
+                          );
+                        }}
                         sx={{ mb: 2 }}
                         size="small"
                       />
@@ -2518,6 +2541,9 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
             agentName={loggedInAgentName}
             discount={Number(appliedDiscount || 0)}
             discountType={discountType}
+            discountPercent={
+              discountType === "percentage" ? Number(discountValue) || 0 : 0
+            }
             paymentMethod={paymentMethod}
             transactionId={transactionId}
             onClose={handleCloseOrderDetailsPopup}

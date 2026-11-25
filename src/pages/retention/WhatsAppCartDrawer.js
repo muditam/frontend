@@ -1640,8 +1640,11 @@ export default function WhatsAppCartDrawer({
           orderId={latestOrderId}
           agentName={agentName}
           customerPhone={customer.phone || phone10}
-          discount={Number(discount || 0)}
+          discount={Number(discountAmount || 0)}
           discountType={discountType}
+          discountPercent={
+            discountType === "percentage" ? Number(discount) || 0 : 0
+          }
           paymentMethod={paymentMethod}
           transactionId={transactionId}
           zIndex={3005}
