@@ -10,22 +10,6 @@ const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
 const FULFILLMENT_CACHE_TTL_MS = 2 * 60 * 1000;
 const UNFULFILLED_CACHE_TTL_MS = 30 * 1000;
 const indiaDateKey = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const isTransientRequestError = (error) => {
- const status = Number(error?.response?.status || 0);
- return !status || status === 408 || status === 429 || status >= 500;
-};
-
-async function getWithTransientRetry(url, config) {
- try {
-   return await axios.get(url, config);
- } catch (error) {
-   if (!isTransientRequestError(error)) throw error;
-   await wait(600);
-   return axios.get(url, config);
- }
-}
 
 
 /* ── utils ── */
@@ -314,7 +298,7 @@ function mapSectionResults(results) {
 
 async function fetchFulfillmentOverview(refreshKey = 0) {
  return getCachedData(`super-admin:fulfillment-overview:${indiaDateKey()}:${refreshKey}`, async () => {
-   const { data } = await getWithTransientRetry(`${ANALYTICS}/dashboard-fulfillment-overview`, {
+   const { data } = await axios.get(`${ANALYTICS}/dashboard-fulfillment-overview`, {
      withCredentials: true,
    });
    return data || {};
@@ -323,7 +307,7 @@ async function fetchFulfillmentOverview(refreshKey = 0) {
 
 async function fetchShiptrackTimingOverview(refreshKey = 0) {
  return getCachedData(`super-admin:shiptrack-timing:${refreshKey}`, async () => {
-   const { data } = await getWithTransientRetry(`${ANALYTICS}/shiptrack-timing-overview`, {
+   const { data } = await axios.get(`${ANALYTICS}/shiptrack-timing-overview`, {
      withCredentials: true, timeout: 20000,
    });
    return data || {};
