@@ -1016,8 +1016,11 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
        <OrderDetailsPopup
          orderId={latestOrderId}
          agentName={agentFullName}
-         discount={discount || 0}
+         discount={Number(discountAmount || 0)}
          discountType={discountType}
+         discountPercent={
+           discountType === "percentage" ? Number(discount) || 0 : 0
+         }
          paymentMethod={paymentMethod}
          upsellAmount={undefined}
          transactionId={transactionId}

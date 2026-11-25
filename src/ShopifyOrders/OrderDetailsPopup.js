@@ -110,6 +110,7 @@ const OrderDetailsPopup = ({
  customerPhone = "",
  discount: propDiscount,
  discountType,
+ discountPercent: propDiscountPercent = 0,
  paymentMethod: propPaymentMethod,
  upsellAmount: propUpsellAmount,
  transactionId: propTransactionId,
@@ -141,6 +142,10 @@ const OrderDetailsPopup = ({
 
 
  const [discount, setDiscount] = useState(propDiscount ?? "");
+ // Once the agent types their own rupee discount, the originating percentage
+ // no longer describes it, so it is dropped rather than reported as stale.
+ const [discountEdited, setDiscountEdited] = useState(false);
+ const effectiveDiscountPercent = discountEdited ? 0 : Number(propDiscountPercent) || 0;
  const isFutureOrderDetails = Boolean(futureOrderId);
 
 
@@ -324,7 +329,7 @@ Product Ordered: ${orderDetails.productOrdered}
 Order Date: ${orderDetails.orderDate}
 Total Price: ${computedTotal}
 Health Expert: ${selectedAgent?.trim() ? selectedAgent : "N/A"}
-Discount: ${discountType === "percentage" ? `${discount}%` : `₹${discount}`}
+Discount: ₹${discount}${effectiveDiscountPercent ? ` (${effectiveDiscountPercent}%)` : ""}
 Dosage Ordered: ${dosageOrdered}`;
 
 
@@ -388,8 +393,11 @@ Dosage Ordered: ${dosageOrdered}`;
            paymentMethod,
            partialPayment: Number(partialPayment || 0),
            upsellAmount: upsellChecked ? Number(upsellAmount) : 0,
+           // `discount` is a rupee amount, so the type must say so. The rate it
+           // came from travels separately instead of mislabelling the amount.
            discount: Number(discount || 0),
-           discountType,
+           discountType: "amount",
+           discountPercent: effectiveDiscountPercent,
            transactionId: propTransactionId || orderDetails?.transactionId || "",
          },
          { headers: getSessionUserHeaders(), withCredentials: true }
@@ -600,7 +608,7 @@ Dosage Ordered: ${dosageOrdered}`;
                      <Stack direction="row" spacing={1} alignItems="center">
                        <DiscountIcon fontSize="small" />
                        <Typography variant="caption" color="text.secondary">
-                         Discount ({discountType === "percentage" ? "%" : "₹"})
+                         Discount (₹)
                        </Typography>
                      </Stack>
                      <TextField
@@ -608,8 +616,11 @@ Dosage Ordered: ${dosageOrdered}`;
                        size="small"
                        type="number"
                        value={String(discount ?? "")}
-                       onChange={(e) => setDiscount(e.target.value)}
-                       placeholder={discountType === "percentage" ? "e.g. 10" : "e.g. 200"}
+                       onChange={(e) => {
+                         setDiscountEdited(true);
+                         setDiscount(e.target.value);
+                       }}
+                       placeholder="e.g. 200"
                      />
                    </Stack>
                  </Grid>
