@@ -317,38 +317,45 @@ const RetentionAgentDashboard = () => {
  const canShowDrrPanel = Boolean(user?.permissions?.navbar?.drrPanel);
 
 
- const fetchAllSummaryData = useCallback(async (agentName, startDate, endDate) => {
+ const fetchAllSummaryData = useCallback(async (agentName, agentEmail, startDate, endDate) => {
    setLoadingMain(true);
    try {
-     const [activeCounts, todaySummaryData, followupData] = await getCachedData(
-       `retention-agent:summary:${agentName}:${startDate}:${endDate}`,
+     const [todaySummaryData, followupData] = await getCachedData(
+       `retention-agent:summary:v3:${agentName}:${agentEmail || ""}:${startDate}:${endDate}`,
        async () => {
-         const [activeCountsRes, todaySummaryRes, followupRes] = await Promise.all([
-           axios.get(`${API_BASE}/api/leads/retention/active-counts`),
+         const [todaySummaryRes, retentionLeadsRes] = await Promise.all([
            axios.get(`${API_BASE}/api/today-summary`, {
              params: { agentName, startDate, endDate },
            }),
-           axios.get(`${API_BASE}/api/followup-summary`, {
-             params: { agentName, startDate, endDate },
+           axios.get(`${API_BASE}/api/leads/retentions`, {
+             withCredentials: true,
+             params: {
+               fullName: agentName,
+               email: agentEmail,
+               page: 1,
+               limit: 1,
+               retentionStatus: "Active",
+             },
            }),
          ]);
+         const counts = retentionLeadsRes?.data?.counts || {};
+         const followups = counts.followups || {};
          return [
-           Array.isArray(activeCountsRes?.data) ? activeCountsRes.data : [],
            todaySummaryRes?.data || {},
-           followupRes?.data || {},
+           {
+             noFollowupSet: Number(followups.notset || 0),
+             followupMissed: Number(followups.missed || 0),
+             followupToday: Number(followups.today || 0),
+             followupTomorrow: Number(followups.tomorrow || 0),
+             followupLater: Number(followups.later || 0),
+             lostCustomers: Number(counts.lost || 0),
+           },
          ];
        },
        DASHBOARD_CACHE_TTL_MS
      );
 
-
-     const current = activeCounts.find((item) => item?._id === agentName);
-
-
-     setTodayMetrics({
-       ...(todaySummaryData || {}),
-       activeCustomers: Number(current?.activeCount || 0),
-     });
+     setTodayMetrics(todaySummaryData || {});
      setFollowupMetrics(followupData || {});
    } catch (error) {
      console.error("Error fetching today/followup data:", error);
@@ -434,11 +441,11 @@ const RetentionAgentDashboard = () => {
    if (!user?.fullName || !startDate || !endDate) return;
    setWindowLabel(`${prettyDate(startDate)} - ${prettyDate(endDate)}`);
    await Promise.all([
-     fetchAllSummaryData(user.fullName, startDate, endDate),
+     fetchAllSummaryData(user.fullName, user.email, startDate, endDate),
      fetchShipmentSummary(user.fullName, startDate, endDate),
      fetchAuxCards(startDate, endDate),
    ]);
- }, [fetchAllSummaryData, fetchAuxCards, fetchShipmentSummary, user?.fullName]);
+ }, [fetchAllSummaryData, fetchAuxCards, fetchShipmentSummary, user?.email, user?.fullName]);
 
 
  useEffect(() => {
@@ -504,7 +511,7 @@ const RetentionAgentDashboard = () => {
      setRetentionOverviewLoading(true);
      try {
        const data = await getCachedData(
-         `retention-agent:overview:${user.fullName}`,
+         `retention-agent:overview:v2:${user.fullName}`,
          async () => {
            const response = await axios.get(`${API_BASE}/cohart-dataApi/active-customers-expert-summary`, {
              params: { lookbackDays: 540 },
@@ -593,7 +600,7 @@ const RetentionAgentDashboard = () => {
  const todayCards = [
    {
      label: "Active Customers",
-     value: Number(todayMetrics.activeCustomers || 0).toLocaleString("en-IN"),
+     value: Number(retentionOverviewMine.totalActiveCustomers || 0).toLocaleString("en-IN"),
      sub: "Current active base",
    },
    {
@@ -636,8 +643,8 @@ const RetentionAgentDashboard = () => {
  const deliveredShipmentCount = Number(deliveredShipmentRow?.count || 0);
 
 
- const conversionRate = Number(todayMetrics.activeCustomers || 0)
-   ? ((Number(todayMetrics.salesDone || 0) / Number(todayMetrics.activeCustomers || 1)) * 100).toFixed(2)
+ const conversionRate = Number(retentionOverviewMine.totalActiveCustomers || 0)
+   ? ((Number(todayMetrics.salesDone || 0) / Number(retentionOverviewMine.totalActiveCustomers || 1)) * 100).toFixed(2)
    : "0.00";
 
 
