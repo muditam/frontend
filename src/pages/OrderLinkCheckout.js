@@ -156,6 +156,15 @@ export function getPaymentProcessingMessage(status) {
   return "";
 }
 
+export function getPaymentFailureMessage(failure) {
+  if (!failure) return "";
+  const method = String(failure.method || "online").toLowerCase() === "netbanking" ? "Net banking" : "Online payment";
+  if (failure.source === "bank") {
+    return `${method} was declined by the bank. No payment was captured. Use UPI, card, or another bank to try again.`;
+  }
+  return `${method} was not completed. No payment was captured. You can safely try another payment method.`;
+}
+
 export function verifyPaymentWithTimeout(url, payload, timeoutMs = VERIFY_PAYMENT_TIMEOUT_MS) {
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   let timeoutId;
@@ -195,6 +204,9 @@ export default function OrderLinkCheckout() {
   const [selectedPayment, setSelectedPayment] = useState("");
   const [orderIdCopied, setOrderIdCopied] = useState(false);
   const paymentVerificationRef = useRef(false);
+  const paymentFailureRef = useRef(false);
+  const pollingStatus = link?.status;
+  const hasPaymentFailure = Boolean(link?.paymentFailure);
 
   const load = useCallback(async ({ refresh = false, silent = false } = {}) => {
     if (!refresh) setLoading(true);
@@ -205,7 +217,7 @@ export default function OrderLinkCheckout() {
       const savedAddress = data.orderLink.shippingAddress || {};
       setAddress(savedAddress);
       setAddressDraft(copyAddress(savedAddress));
-      return true;
+      return data.orderLink;
     } catch (err) {
       if (!refresh || !silent) setError(err?.response?.data?.message || "Order link not found.");
       return false;
@@ -219,12 +231,12 @@ export default function OrderLinkCheckout() {
   }, [load]);
 
   useEffect(() => {
-    if (!link || !["payment_creating", "payment_pending", "creating_order"].includes(link.status)) return undefined;
+    if (hasPaymentFailure || !["payment_creating", "payment_pending", "creating_order"].includes(pollingStatus)) return undefined;
     const timer = window.setInterval(() => {
       load({ refresh: true, silent: true });
     }, 15000);
     return () => window.clearInterval(timer);
-  }, [link?.status, load]);
+  }, [pollingStatus, hasPaymentFailure, load]);
 
   useEffect(() => {
     const query = productQuery.trim();
@@ -451,6 +463,7 @@ export default function OrderLinkCheckout() {
         description: selectedMode === "Partial Paid" ? "Advance payment" : "Order payment",
         order_id: initiation.data.orderId,
         handler: async (response) => {
+          paymentFailureRef.current = false;
           paymentVerificationRef.current = true;
           setPaymentState("verifying");
           setPaymentMessage("Payment received. Confirming your order...");
@@ -478,15 +491,29 @@ export default function OrderLinkCheckout() {
         },
         modal: {
           ondismiss: () => {
-            if (!paymentVerificationRef.current) {
+            if (!paymentVerificationRef.current && !paymentFailureRef.current) {
               setLink((current) => markPaymentAttemptPending(current));
               setPaymentState("idle");
               setPaymentMessage("Payment was not completed. You can cancel this payment attempt to edit your order.");
             }
+            paymentFailureRef.current = false;
             setBusy("");
           },
         },
         prefill: { name: link.customer?.name, contact: link.customer?.phone },
+      });
+      checkout.on?.("payment.failed", (response) => {
+        const providerError = response?.error || {};
+        const failure = {
+          paymentId: providerError.metadata?.payment_id || "",
+          method: "",
+          source: providerError.source || "",
+          reason: providerError.reason || "",
+        };
+        paymentFailureRef.current = true;
+        setLink((current) => ({ ...markPaymentAttemptPending(current), paymentFailure: failure }));
+        setPaymentState("payment_failed");
+        setPaymentMessage(getPaymentFailureMessage(failure));
       });
       setPaymentState("checkout_open");
       checkout.open();
@@ -502,8 +529,15 @@ export default function OrderLinkCheckout() {
     setPaymentMessage("Refreshing order status...");
     const refreshed = await load({ refresh: true });
     if (refreshed) {
-      setPaymentState("idle");
-      setPaymentMessage("Status refreshed. No payment has been confirmed yet. You can continue from this order link.");
+      if (refreshed.status === "order_created") {
+        setPaymentState("complete");
+        setPaymentMessage("");
+      } else {
+        setPaymentState(refreshed.paymentFailure ? "payment_failed" : "idle");
+        setPaymentMessage(refreshed.paymentFailure
+          ? getPaymentFailureMessage(refreshed.paymentFailure)
+          : "Status refreshed. No payment has been confirmed yet. You can continue from this order link.");
+      }
     } else {
       setPaymentMessage("Could not refresh the order status. Your payment is still protected. Please try again.");
     }
@@ -630,14 +664,15 @@ export default function OrderLinkCheckout() {
   );
   const actionButton = renderActionButton(actionLabel);
 
-  const serverProcessingMessage = getPaymentProcessingMessage(link?.status);
+  const paymentFailureMessage = getPaymentFailureMessage(link?.paymentFailure);
+  const serverProcessingMessage = paymentFailureMessage || getPaymentProcessingMessage(link?.status);
   const isServerProcessing = Boolean(serverProcessingMessage);
   const paymentStatusBlock = (paymentMessage || isServerProcessing) ? (
-    <Box sx={{ mt: 1, p: 1.25, borderRadius: "12px", border: `1px solid ${ui.line}`, bgcolor: ui.paper }}>
+    <Box sx={{ mt: 1, p: 1.25, borderRadius: "12px", border: `1px solid ${link?.paymentFailure ? "#f3c7c7" : ui.line}`, bgcolor: link?.paymentFailure ? "#fff8f8" : ui.paper }}>
       <Typography sx={{ color: ui.ink, fontSize: 14, fontWeight: 600, lineHeight: 1.4 }}>
         {paymentMessage || serverProcessingMessage}
       </Typography>
-      {(paymentState === "verification_failed" || isServerProcessing) && (
+      {(paymentState === "verification_failed" || (isServerProcessing && !link?.paymentFailure)) && (
         <Button size="small" disabled={!!busy} onClick={refreshPaymentStatus} sx={{ mt: 0.5, px: 0, textTransform: "none", fontWeight: 700, color: ui.brand }}>
           Refresh order status
         </Button>
@@ -651,7 +686,7 @@ export default function OrderLinkCheckout() {
           startIcon={busy === "cancel-payment" ? <CircularProgress color="inherit" size={16} /> : <RestartAltIcon />}
           sx={{ mt: 1, minHeight: 44, borderRadius: "12px", borderColor: ui.brand, color: ui.brandDeep, textTransform: "none", fontWeight: 700, "&:hover": { borderColor: ui.brandDeep, bgcolor: ui.brandSoft } }}
         >
-          {busy === "cancel-payment" ? "Cancelling payment..." : "Cancel payment and edit order"}
+          {busy === "cancel-payment" ? "Checking payment status..." : link?.paymentFailure ? "Use another payment method" : "Cancel payment and edit order"}
         </Button>
       )}
     </Box>
