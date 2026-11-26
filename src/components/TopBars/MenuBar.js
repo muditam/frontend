@@ -603,7 +603,7 @@ const MenuBar = ({ toggleDrawer }) => {
           )}
 
           {/* Sales Agent */}
-          {user && (can("abandonedCart") || ["sales agent", "manager", "admin", "super admin", "superadmin"].includes(String(user.role || "").toLowerCase())) && (
+          {user && (can("acquisitionLeads") || ["admin", "super-admin", "superadmin", "manager"].includes(role)) && (
             <NavItem to="/acquisition/ticketing-leads" icon={<PersonAddIcon />} label="Acquisition Leads" />
           )}
           {user && can("salesAgentMenu") && (

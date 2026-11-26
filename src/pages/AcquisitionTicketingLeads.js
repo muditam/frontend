@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
 import {
@@ -19,7 +19,9 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
+  TextField,
   Typography,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -29,12 +31,14 @@ const editableStatuses = ["pending_lms", "active", "contacted", "converted", "no
 
 function currentUser() { return JSON.parse(sessionStorage.getItem("user") || "{}"); }
 function role() { return String(currentUser()?.role || "").trim().toLowerCase(); }
-function hasAbandonedCartPermission() {
+function hasAcquisitionLeadsPermission() {
   const user = currentUser();
-  return user?.permissions?.menubar?.abandonedCart === true || user?.permissions?.navbar?.abandonedCart === true;
+  return user?.permissions?.menubar?.acquisitionLeads === true || user?.permissions?.navbar?.acquisitionLeads === true;
 }
-function isAdmin() { return hasAbandonedCartPermission() || ["admin", "super admin", "superadmin", "manager"].includes(role()); }
-function canAccess() { return isAdmin() || ["manager", "sales agent"].includes(role()); }
+// Mirrors the backend: assigning stays with administrators and managers, while
+// access comes from the acquisitionLeads permission rather than a job title.
+function isAdmin() { return ["admin", "super admin", "superadmin", "manager"].includes(role()); }
+function canAccess() { return isAdmin() || hasAcquisitionLeadsPermission(); }
 
 function formatMoney(value, currency = "INR") {
   const amount = Number(value || 0);
@@ -53,6 +57,11 @@ export default function AcquisitionTicketingLeads() {
   const [agents, setAgents] = useState([]);
   const [assignments, setAssignments] = useState({});
   const [savingRow, setSavingRow] = useState(null);
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,9 +105,10 @@ export default function AcquisitionTicketingLeads() {
     setSavingRow(lead.id);
     setItems((rows) => rows.map((row) => row.id === lead.id ? { ...row, assignedTo: agent ? { id: agent.id, name: agent.name } : null } : row));
     try {
+      // Assigning an expert activates the lead, whatever it was before.
       await api.patch(`/api/ticketing-integration/acquisition-leads/${lead.id}`, {
         assignedTo,
-        ...(lead.status === "pending_lms" && assignedTo ? { status: "active" } : {}),
+        status: "active",
       });
       await load();
     } catch (requestError) {
@@ -108,6 +118,36 @@ export default function AcquisitionTicketingLeads() {
       setSavingRow(null);
     }
   };
+
+  const counts = useMemo(() => ({
+    all: items.length,
+    widget: items.filter((lead) => lead.source === "widget").length,
+    ticketing: items.filter((lead) => lead.source !== "widget").length,
+  }), [items]);
+
+  const filteredItems = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const digits = term.replace(/\D/g, "");
+    return items.filter((lead) => {
+      const isWidget = lead.source === "widget";
+      if (sourceFilter === "widget" && !isWidget) return false;
+      if (sourceFilter === "ticketing" && isWidget) return false;
+      if (statusFilter !== "all" && (lead.status || "pending_lms") !== statusFilter) return false;
+      if (!term) return true;
+      const name = String(lead.customer?.name || "").toLowerCase();
+      const phone = String(lead.customer?.phone || "").replace(/\D/g, "");
+      const order = String(lead.order?.name || "").toLowerCase();
+      return name.includes(term) || order.includes(term) || (digits.length >= 4 && phone.includes(digits));
+    });
+  }, [items, sourceFilter, statusFilter, search]);
+
+  // A filter change can leave the viewer past the end of the shorter list.
+  useEffect(() => { setPage(0); }, [sourceFilter, statusFilter, search]);
+
+  const pagedItems = useMemo(
+    () => filteredItems.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filteredItems, page, rowsPerPage]
+  );
 
   if (!canAccess()) {
     return <Box p={3}><Alert severity="error">This tab is available only to Sales Agents, Managers, and administrators.</Alert></Box>;
@@ -124,6 +164,46 @@ export default function AcquisitionTicketingLeads() {
       </Stack>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+      <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} mb={2} alignItems={{ md: "center" }}>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel>Source</InputLabel>
+          <Select label="Source" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+            <MenuItem value="all">All sources ({counts.all})</MenuItem>
+            <MenuItem value="widget">Chatbot ({counts.widget})</MenuItem>
+            <MenuItem value="ticketing">Ticketing ({counts.ticketing})</MenuItem>
+          </Select>
+        </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel>Status</InputLabel>
+          <Select label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <MenuItem value="all">All statuses</MenuItem>
+            {editableStatuses.map((status) => (
+              <MenuItem key={status} value={status}>{status.replaceAll("_", " ")}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <TextField
+          size="small"
+          label="Search name, phone or order"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          sx={{ minWidth: 260 }}
+        />
+
+        {(sourceFilter !== "all" || statusFilter !== "all" || search) && (
+          <Button size="small" onClick={() => { setSourceFilter("all"); setStatusFilter("all"); setSearch(""); }}>
+            Clear
+          </Button>
+        )}
+
+        <Box flexGrow={1} />
+        <Typography variant="body2" color="text.secondary">
+          Showing {filteredItems.length} of {counts.all}
+        </Typography>
+      </Stack>
 
       <Paper>
         <TableContainer>
@@ -144,13 +224,18 @@ export default function AcquisitionTicketingLeads() {
             <TableBody>
               {loading ? (
                 <TableRow><TableCell colSpan={isAdmin() ? 9 : 7} align="center" sx={{ py: 4 }}><CircularProgress size={24} /></TableCell></TableRow>
-              ) : items.length === 0 ? (
-                <TableRow><TableCell colSpan={isAdmin() ? 9 : 7} align="center" sx={{ py: 4 }}>No data</TableCell></TableRow>
+              ) : filteredItems.length === 0 ? (
+                <TableRow><TableCell colSpan={isAdmin() ? 9 : 7} align="center" sx={{ py: 4 }}>
+                  {items.length === 0 ? "No data" : "No leads match these filters"}
+                </TableCell></TableRow>
               ) : (
-                items.map((lead) => {
+                pagedItems.map((lead) => {
                   const products = Array.isArray(lead.order?.products) ? lead.order.products : [];
                   const preview = products.slice(0, 2);
                   const selectedAgent = assignments[lead.id] || lead.assignedTo?.id || "";
+                  // Already owned in Consultation or in Leads: show that expert
+                  // rather than offering to assign the lead again.
+                  const existingExpert = lead.existingExpert?.name || "";
                   const currency = lead.order?.currency || "INR";
 
                   return (
@@ -178,16 +263,25 @@ export default function AcquisitionTicketingLeads() {
                       <TableCell>{lead.source === "widget" ? "" : addressState(lead.order?.address)}</TableCell>
                       {isAdmin() && (
                         <TableCell>
-                          <FormControl size="small" fullWidth sx={{ minWidth: 220 }}>
-                            <InputLabel>Expert</InputLabel>
-                            <Select
-                              label="Expert"
-                              value={selectedAgent}
-                              onChange={(event) => setAssignments((current) => ({ ...current, [lead.id]: event.target.value }))}
-                            >
-                              {agents.map((agent) => <MenuItem key={agent.id} value={agent.id}>{agent.name}</MenuItem>)}
-                            </Select>
-                          </FormControl>
+                          {existingExpert ? (
+                            <Stack spacing={0.25}>
+                              <Typography variant="body2" fontWeight={600}>{existingExpert}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {lead.existingExpert?.from === "customer" ? "Already in Consultation" : "Already assigned in Leads"}
+                              </Typography>
+                            </Stack>
+                          ) : (
+                            <FormControl size="small" fullWidth sx={{ minWidth: 220 }}>
+                              <InputLabel>Expert</InputLabel>
+                              <Select
+                                label="Expert"
+                                value={selectedAgent}
+                                onChange={(event) => setAssignments((current) => ({ ...current, [lead.id]: event.target.value }))}
+                              >
+                                {agents.map((agent) => <MenuItem key={agent.id} value={agent.id}>{agent.name}</MenuItem>)}
+                              </Select>
+                            </FormControl>
+                          )}
                         </TableCell>
                       )}
                       <TableCell>
@@ -201,7 +295,7 @@ export default function AcquisitionTicketingLeads() {
                             size="small"
                             variant="contained"
                             onClick={() => updateAssignee(lead)}
-                            disabled={!selectedAgent || savingRow === lead.id}
+                            disabled={Boolean(existingExpert) || !selectedAgent || savingRow === lead.id}
                             sx={{ bgcolor: "#000", ":hover": { bgcolor: "#111" } }}
                           >
                             {savingRow === lead.id ? "Saving..." : "Save"}
@@ -215,6 +309,18 @@ export default function AcquisitionTicketingLeads() {
             </TableBody>
           </Table>
         </TableContainer>
+        <TablePagination
+          component="div"
+          count={filteredItems.length}
+          page={page}
+          onPageChange={(_event, nextPage) => setPage(nextPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(event) => {
+            setRowsPerPage(Number(event.target.value));
+            setPage(0);
+          }}
+          rowsPerPageOptions={[10, 25, 50, 100]}
+        />
       </Paper>
     </Box>
   );
