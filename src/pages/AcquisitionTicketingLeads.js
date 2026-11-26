@@ -29,12 +29,14 @@ const editableStatuses = ["pending_lms", "active", "contacted", "converted", "no
 
 function currentUser() { return JSON.parse(sessionStorage.getItem("user") || "{}"); }
 function role() { return String(currentUser()?.role || "").trim().toLowerCase(); }
-function hasAbandonedCartPermission() {
+function hasAcquisitionLeadsPermission() {
   const user = currentUser();
-  return user?.permissions?.menubar?.abandonedCart === true || user?.permissions?.navbar?.abandonedCart === true;
+  return user?.permissions?.menubar?.acquisitionLeads === true || user?.permissions?.navbar?.acquisitionLeads === true;
 }
-function isAdmin() { return hasAbandonedCartPermission() || ["admin", "super admin", "superadmin", "manager"].includes(role()); }
-function canAccess() { return isAdmin() || ["manager", "sales agent"].includes(role()); }
+// Mirrors the backend: assigning stays with administrators and managers, while
+// access comes from the acquisitionLeads permission rather than a job title.
+function isAdmin() { return ["admin", "super admin", "superadmin", "manager"].includes(role()); }
+function canAccess() { return isAdmin() || hasAcquisitionLeadsPermission(); }
 
 function formatMoney(value, currency = "INR") {
   const amount = Number(value || 0);
