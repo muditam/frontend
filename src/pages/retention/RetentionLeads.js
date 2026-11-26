@@ -1611,8 +1611,6 @@ const RetentionLeads = () => {
                   </Button>
                 );
               })}
-            </Stack>
-
             <Tooltip title="No Call">
               <IconButton
                 size="small"
@@ -1640,6 +1638,7 @@ const RetentionLeads = () => {
                 </Badge>
               </IconButton>
             </Tooltip>
+            </Stack>
           </Box>
 
           <Stack direction="row" spacing={0.65} mt={1} sx={{ flexWrap: "wrap", rowGap: 0.65 }}>
@@ -1659,6 +1658,7 @@ const RetentionLeads = () => {
                     setFilters((prev) => ({
                       ...prev,
                       rtFollowupReminder: isSelected ? null : value,
+                      ...(isSelected ? {} : { retentionStatus: "Active" }),
                     }));
                   }}
                   size="small"
