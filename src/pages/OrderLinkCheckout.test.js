@@ -5,6 +5,7 @@ import {
   copyAddress,
   mergeOrderLink,
   fmt,
+  getPaymentFailureMessage,
   getPaymentProcessingMessage,
   isPaymentActionLocked,
   isPrimaryActionDisabled,
@@ -57,6 +58,18 @@ describe("order-link Razorpay verification recovery", () => {
 
   test("does not show processing guidance for an idle link", () => {
     expect(getPaymentProcessingMessage("viewed")).toBe("");
+  });
+
+  test("explains a bank decline and confirms that no payment was captured", () => {
+    expect(getPaymentFailureMessage({ method: "netbanking", source: "bank" })).toBe(
+      "Net banking was declined by the bank. No payment was captured. Use UPI, card, or another bank to try again."
+    );
+  });
+
+  test("gives a safe retry message for other failed payment attempts", () => {
+    expect(getPaymentFailureMessage({ method: "card", source: "customer" })).toContain(
+      "No payment was captured. You can safely try another payment method."
+    );
   });
 
   test("copies address drafts without mutating the saved address", () => {
