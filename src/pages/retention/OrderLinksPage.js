@@ -6,6 +6,7 @@ import {
   Chip,
   CircularProgress,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
@@ -14,6 +15,7 @@ import {
   MenuItem,
   Paper,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -66,6 +68,11 @@ export default function OrderLinksPage() {
   const [paymentMode, setPaymentMode] = useState("all");
   const [selected, setSelected] = useState(null);
   const [reportingSyncId, setReportingSyncId] = useState("");
+  const [offerSetting, setOfferSetting] = useState(null);
+  const [canManageOffer, setCanManageOffer] = useState(false);
+  const [offerSaving, setOfferSaving] = useState(false);
+  const [pendingOfferValue, setPendingOfferValue] = useState(null);
+  const [offerNotice, setOfferNotice] = useState("");
 
   const loadLinks = useCallback(async () => {
     setLoading(true);
@@ -81,6 +88,20 @@ export default function OrderLinksPage() {
   }, []);
 
   useEffect(() => { loadLinks(); }, [loadLinks]);
+
+  useEffect(() => {
+    let active = true;
+    api.get("/api/order-links/settings/online-discount")
+      .then(({ data }) => {
+        if (!active) return;
+        setOfferSetting(data?.setting || null);
+        setCanManageOffer(Boolean(data?.canManage));
+      })
+      .catch(() => {
+        if (active) setCanManageOffer(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   const filteredLinks = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -121,6 +142,22 @@ export default function OrderLinksPage() {
     }
   };
 
+  const updateOffer = async () => {
+    setOfferSaving(true);
+    setOfferNotice("");
+    try {
+      const { data } = await api.patch("/api/order-links/settings/online-discount", { enabled: pendingOfferValue });
+      setOfferSetting(data?.setting || null);
+      setOfferNotice(`${pendingOfferValue ? "Enabled" : "Paused"} for newly created and regenerated order links. Existing links are unchanged.`);
+      setPendingOfferValue(null);
+      await loadLinks();
+    } catch (err) {
+      setError(err?.response?.data?.message || "Could not update the online-payment offer.");
+    } finally {
+      setOfferSaving(false);
+    }
+  };
+
   return (
     <Box sx={{ minHeight: "calc(100vh - 64px)", bgcolor: "#f6f8fb", p: { xs: 2, md: 4 } }}>
       <Box sx={{ maxWidth: 1320, mx: "auto" }}>
@@ -133,6 +170,32 @@ export default function OrderLinksPage() {
             Create from a lead
           </Button>
         </Stack>
+
+        {canManageOffer && offerSetting && (
+          <Paper sx={{ p: 2, mb: 2.5, border: "1px solid #d8e1ec", boxShadow: "none", borderRadius: 2 }}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }} justifyContent="space-between">
+              <Box>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography sx={{ fontWeight: 800 }}>5% online-payment offer</Typography>
+                  <Chip size="small" color={offerSetting.enabled ? "success" : "default"} label={offerSetting.enabled ? "Active" : "Paused"} />
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Controls the 5% prepayment saving for newly created and regenerated COD and Partial Paid links. Existing links keep their original offer.
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>{offerSetting.enabled ? "Offer on" : "Offer off"}</Typography>
+                <Switch
+                  checked={Boolean(offerSetting.enabled)}
+                  disabled={offerSaving}
+                  onChange={(event) => setPendingOfferValue(event.target.checked)}
+                  inputProps={{ "aria-label": "Toggle 5% online-payment offer" }}
+                />
+              </Stack>
+            </Stack>
+            {offerNotice && <Alert severity="success" sx={{ mt: 1.5 }} onClose={() => setOfferNotice("")}>{offerNotice}</Alert>}
+          </Paper>
+        )}
 
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, 1fr)" }, gap: 1.5, mb: 2.5 }}>
           {[["Total links", stats.total, "#172033"], ["Purchased", stats.purchased, "#13795b"], ["In progress", stats.pending, "#a16207"], ["Expired", stats.expired, "#64748b"]].map(([label, value, color]) => (
@@ -213,6 +276,23 @@ export default function OrderLinksPage() {
             </Stack>
           </DialogContent>
         </>}
+      </Dialog>
+
+      <Dialog open={pendingOfferValue !== null} onClose={() => !offerSaving && setPendingOfferValue(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>{pendingOfferValue ? "Enable 5% offer?" : "Pause 5% offer?"}</DialogTitle>
+        <DialogContent>
+          <Typography color="text.secondary">
+            {pendingOfferValue
+              ? "Newly created and regenerated COD and Partial Paid links will include the 5% online-payment discount. Existing links will not change."
+              : "Newly created and regenerated links will not include the 5% claim or discount. Existing links will keep the offer they already have."}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button disabled={offerSaving} onClick={() => setPendingOfferValue(null)}>Cancel</Button>
+          <Button disabled={offerSaving} variant="contained" color={pendingOfferValue ? "primary" : "warning"} onClick={updateOffer}>
+            {offerSaving ? "Saving..." : pendingOfferValue ? "Enable offer" : "Pause offer"}
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );
