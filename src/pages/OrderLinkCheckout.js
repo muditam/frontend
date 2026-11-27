@@ -126,11 +126,11 @@ export function mergeOrderLink(current, next, { authoritative = false } = {}) {
 export function classifyPaymentInitiationResponse(data) {
   const orderLink = data?.orderLink;
   if (orderLink?.status === "order_created") return { kind: "completed", orderLink };
+  if (data?.keyId && data?.orderId && Number.isFinite(Number(data.amount)) && Number(data.amount) > 0) {
+    return { kind: "checkout", data, orderLink };
+  }
   if (orderLink && ["payment_creating", "payment_pending", "creating_order"].includes(orderLink.status)) {
     return { kind: "processing", orderLink };
-  }
-  if (data?.keyId && data?.orderId && Number.isFinite(Number(data.amount)) && Number(data.amount) > 0) {
-    return { kind: "checkout", data };
   }
   return { kind: "invalid" };
 }
@@ -154,6 +154,18 @@ export function getPaymentProcessingMessage(status) {
   if (status === "payment_creating") return "Your payment setup is still in progress. Please refresh the order status before trying again.";
   if (status === "payment_pending") return "A payment attempt is already in progress. Refresh the order status before trying again.";
   return "";
+}
+
+export function getOnlinePaymentOfferState(link = {}) {
+  const totals = link.totals || {};
+  const percent = Number(link.onlinePaymentOffer?.percent || totals.onlineDiscountPercent || 0);
+  const active = Boolean(link.onlinePaymentOffer?.enabled && Number(totals.onlineDiscount || 0) > 0);
+  return {
+    active,
+    percent,
+    title: active ? `Pay now & save ${percent}%` : "Pay full amount now",
+    subtitle: active ? "Pay online (UPI / Card) and get priority dispatch" : "Pay securely online using UPI or card",
+  };
 }
 
 export function verifyPaymentWithTimeout(url, payload, timeoutMs = VERIFY_PAYMENT_TIMEOUT_MS) {
@@ -438,6 +450,9 @@ export default function OrderLinkCheckout() {
         setPaymentMessage("Payment status could not be confirmed. Refresh the order status or contact support before trying again.");
         return;
       }
+      if (initiation.orderLink) {
+        setLink((current) => mergeOrderLink(current, initiation.orderLink));
+      }
       if (!window.Razorpay) {
         setPaymentState("verification_failed");
         setPaymentMessage("Payment could not be started. Please refresh this page and try again.");
@@ -538,6 +553,9 @@ export default function OrderLinkCheckout() {
 
   const totals = link?.totals || {};
   const paymentMode = link?.paymentMode;
+  const onlineOffer = getOnlinePaymentOfferState(link);
+  const onlineOfferPercent = onlineOffer.percent;
+  const onlineOfferActive = onlineOffer.active;
   const paymentOptions = [];
   if (paymentMode === "COD") {
     paymentOptions.push({ key: "cod", title: "Cash on Delivery", sub: "Pay the full amount at your doorstep", badge: "", amount: totals.codTotal });
@@ -556,8 +574,8 @@ export default function OrderLinkCheckout() {
   if (paymentMode === "COD" || paymentMode === "Partial Paid" || paymentMode === "Prepaid") {
     paymentOptions.push({
       key: "prepay",
-      title: ["COD", "Partial Paid"].includes(paymentMode) ? "Pay now & save 5%" : "Pay full amount now",
-      sub: paymentMode === "COD" ? "Pay online (UPI / Card) and get priority dispatch" : "Pay online (UPI / Card) and get priority dispatch",
+      title: onlineOffer.title,
+      sub: onlineOffer.subtitle,
       badges: [
         "Popular",
         "Fast delivery",
@@ -567,7 +585,7 @@ export default function OrderLinkCheckout() {
   }
   const selected = paymentOptions.some((option) => option.key === selectedPayment) ? selectedPayment : paymentOptions[0]?.key;
   const selectedOption = paymentOptions.find((option) => option.key === selected);
-  const prepayDiscount = ["COD", "Partial Paid"].includes(paymentMode) && selected === "prepay"
+  const prepayDiscount = onlineOfferActive && selected === "prepay"
     ? Math.max(0, Number(totals.codTotal || 0) - Number(totals.fullOnlineTotal || 0))
     : 0;
   const orderTotal = selected === "prepay" ? Number(selectedOption?.amount || 0) : Number(totals.codTotal || 0);
@@ -578,7 +596,7 @@ export default function OrderLinkCheckout() {
   let actionLabel = "Place Order";
   if (selected === "cod") actionLabel = codOtpBusy ? (codOtpOpen ? "Verifying OTP..." : "Sending OTP...") : `Place Order (COD - ${fmt(payNow)})`;
   else if (selected === "partial") actionLabel = busy === "Partial Paid" ? "Starting payment..." : `Pay ${fmt(payNow)} advance & confirm`;
-  else if (selected === "prepay") actionLabel = busy === "Prepaid" ? "Starting payment..." : ["COD", "Partial Paid"].includes(paymentMode) ? `Pay ${fmt(payNow)} & save 5%` : `Pay ${fmt(payNow)} now`;
+  else if (selected === "prepay") actionLabel = busy === "Prepaid" ? "Starting payment..." : onlineOfferActive ? `Pay ${fmt(payNow)} & save ${onlineOfferPercent}%` : `Pay ${fmt(payNow)} now`;
 
   const mobileActionLabel = codOtpBusy || busy === "Partial Paid" || busy === "Prepaid"
     ? actionLabel
@@ -703,7 +721,7 @@ export default function OrderLinkCheckout() {
         </Box>
         {prepayDiscount > 0 && (
           <Box sx={{ display: "flex", justifyContent: "space-between", color: ui.green, fontWeight: 500 }}>
-            <span>Prepay 5% Extra Discount</span>
+            <span>Prepay {onlineOfferPercent}% Extra Discount</span>
             <span>-{fmt(prepayDiscount)}</span>
           </Box>
         )}

@@ -6,6 +6,7 @@ import {
   mergeOrderLink,
   fmt,
   getPaymentProcessingMessage,
+  getOnlinePaymentOfferState,
   isPaymentActionLocked,
   isPrimaryActionDisabled,
   markPaymentAttemptPending,
@@ -31,7 +32,13 @@ describe("order-link Razorpay verification recovery", () => {
 
   test("accepts valid new checkout credentials", () => {
     const data = { keyId: "rzp_test", orderId: "order_1", amount: 46500, currency: "INR" };
-    expect(classifyPaymentInitiationResponse(data)).toEqual({ kind: "checkout", data });
+    expect(classifyPaymentInitiationResponse(data)).toEqual({ kind: "checkout", data, orderLink: undefined });
+  });
+
+  test("uses authoritative pricing returned with new checkout credentials", () => {
+    const orderLink = { status: "payment_pending", totals: { fullOnlineTotal: 465 }, onlinePaymentOffer: { enabled: false, percent: 5 } };
+    const data = { keyId: "rzp_test", orderId: "order_1", amount: 46500, currency: "INR", orderLink };
+    expect(classifyPaymentInitiationResponse(data)).toEqual({ kind: "checkout", data, orderLink });
   });
 
   test("rejects malformed initiation responses", () => {
@@ -41,6 +48,23 @@ describe("order-link Razorpay verification recovery", () => {
   test("preserves paise in checkout amounts and savings", () => {
     expect(fmt(441.75)).toBe("₹441.75");
     expect(fmt(23.25)).toBe("₹23.25");
+  });
+
+  test("shows the configured saving only while the online-payment offer is active", () => {
+    expect(getOnlinePaymentOfferState({
+      onlinePaymentOffer: { enabled: true, percent: 5 },
+      totals: { onlineDiscount: 23.25 },
+    })).toMatchObject({ active: true, title: "Pay now & save 5%" });
+
+    expect(getOnlinePaymentOfferState({
+      onlinePaymentOffer: { enabled: false, percent: 5 },
+      totals: { onlineDiscount: 0 },
+    })).toEqual({
+      active: false,
+      percent: 5,
+      title: "Pay full amount now",
+      subtitle: "Pay securely online using UPI or card",
+    });
   });
 
   test("opens the order tracking page without an unsupported order-id query", () => {
