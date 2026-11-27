@@ -157,9 +157,10 @@ export function getPaymentProcessingMessage(status) {
 }
 
 export function getOnlinePaymentOfferState(link = {}) {
-  const totals = link.totals || {};
-  const percent = Number(link.onlinePaymentOffer?.percent || totals.onlineDiscountPercent || 0);
-  const active = Boolean(link.onlinePaymentOffer?.enabled && Number(totals.onlineDiscount || 0) > 0);
+  const safeLink = link || {};
+  const totals = safeLink.totals || {};
+  const percent = Number(safeLink.onlinePaymentOffer?.percent || totals.onlineDiscountPercent || 0);
+  const active = Boolean(safeLink.onlinePaymentOffer?.enabled && Number(totals.onlineDiscount || 0) > 0);
   return {
     active,
     percent,

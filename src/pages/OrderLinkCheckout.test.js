@@ -67,6 +67,15 @@ describe("order-link Razorpay verification recovery", () => {
     });
   });
 
+  test("handles the initial null link while checkout is loading", () => {
+    expect(getOnlinePaymentOfferState(null)).toEqual({
+      active: false,
+      percent: 0,
+      title: "Pay full amount now",
+      subtitle: "Pay securely online using UPI or card",
+    });
+  });
+
   test("opens the order tracking page without an unsupported order-id query", () => {
     expect(buildOrderTrackingUrl("#MA163246")).toBe("https://www.muditam.com/pages/order-tracking");
   });
