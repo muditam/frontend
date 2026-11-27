@@ -148,7 +148,7 @@ export default function OrderLinksPage() {
     try {
       const { data } = await api.patch("/api/order-links/settings/online-discount", { enabled: pendingOfferValue });
       setOfferSetting(data?.setting || null);
-      setOfferNotice(`${pendingOfferValue ? "Enabled" : "Paused"} for new and unpaid order links. ${Number(data?.affectedLinks || 0)} existing links updated.`);
+      setOfferNotice(`${pendingOfferValue ? "Enabled" : "Paused"} for newly created and regenerated order links. Existing links are unchanged.`);
       setPendingOfferValue(null);
       await loadLinks();
     } catch (err) {
@@ -180,7 +180,7 @@ export default function OrderLinksPage() {
                   <Chip size="small" color={offerSetting.enabled ? "success" : "default"} label={offerSetting.enabled ? "Active" : "Paused"} />
                 </Stack>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  Controls the 5% prepayment saving shown on COD and Partial Paid links. Active payment attempts keep their original amount.
+                  Controls the 5% prepayment saving for newly created and regenerated COD and Partial Paid links. Existing links keep their original offer.
                 </Typography>
               </Box>
               <Stack direction="row" spacing={1} alignItems="center">
@@ -283,8 +283,8 @@ export default function OrderLinksPage() {
         <DialogContent>
           <Typography color="text.secondary">
             {pendingOfferValue
-              ? "Customers opening new or unpaid COD and Partial Paid links will see and receive the 5% online-payment discount."
-              : "The 5% claim and discount will be removed from new and unpaid links. Payments already in progress will keep their original amount."}
+              ? "Newly created and regenerated COD and Partial Paid links will include the 5% online-payment discount. Existing links will not change."
+              : "Newly created and regenerated links will not include the 5% claim or discount. Existing links will keep the offer they already have."}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
