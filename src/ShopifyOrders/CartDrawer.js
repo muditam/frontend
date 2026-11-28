@@ -46,6 +46,7 @@ import ReactConfetti from "react-confetti";
 import axios from "axios";
 import { withSellableInventory } from "../utils/productInventory";
 import getOrderLinkUtm from "../utils/orderLinkUtm";
+import { roundMoney } from "../utils/money";
 
 import {
   addToCart,
@@ -465,8 +466,8 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
   const calculateSubTotal = () =>
     cart.reduce((total, item) => total + item.variant.price * item.quantity, 0);
 
-  const subTotal = calculateSubTotal();
-  const finalTotal = subTotal + shippingCost - appliedDiscount;
+  const subTotal = roundMoney(calculateSubTotal());
+  const finalTotal = roundMoney(subTotal + roundMoney(shippingCost) - roundMoney(appliedDiscount));
 
   // ----- DISCOUNT LOGIC -----
   const handleOpenDiscountModal = () => {
@@ -487,13 +488,9 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
     if (discountType === "amount") {
       discountAmount = numericValue;
     } else if (discountType === "percentage") {
-      // Keep the exact percentage. Rounding here would record a discount that
-      // does not tie back to the agreed rate in accounting. A fractional total
-      // is fine: collect it through the app-generated payment link so the
-      // captured amount matches it to the paisa.
       discountAmount = (subTotal * numericValue) / 100;
     }
-    dispatch(setAppliedDiscount(discountAmount));
+    dispatch(setAppliedDiscount(roundMoney(discountAmount)));
     dispatch(setDiscountModalOpen(false));
   };
 
@@ -956,12 +953,15 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
         paymentMethod === "Partial Paid" ? Number(partialPaidAmount || 0) : 0,
 
       // ✅ NEW: useful for backend validations/remaining calculation
-      orderTotal: Math.max(0, Number(finalTotal || 0)),
+      orderTotal: Math.max(0, roundMoney(finalTotal)),
 
       transactionId: transactionId || "",
       customerId: customerId,
-      shippingCost: shippingCost,
-      appliedDiscount: appliedDiscount,
+      shippingCost: roundMoney(shippingCost),
+      appliedDiscount: roundMoney(appliedDiscount),
+      discountType,
+      discountPercent:
+        discountType === "percentage" ? Number(discountValue) || 0 : 0,
     };
 
     try {
@@ -1034,8 +1034,8 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
         // Surface the server's reason. Without this the drawer failed silently
         // and agents saw nothing but a console error.
         const serverMessage =
-          error.response?.data?.message ||
           error.response?.data?.error ||
+          error.response?.data?.message ||
           error.message;
         // Shown inline under the Transaction ID field, which is what the agent
         // has to change. No banner.

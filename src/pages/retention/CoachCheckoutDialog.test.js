@@ -8,7 +8,11 @@ jest.mock('axios', () => {
   const client = { get: jest.fn(), post: jest.fn() };
   return { create: () => client, ...client };
 });
-const quote = { product: { title: 'Sugar Control Coach and Blood test', variants: [{ id: 'variant', price: '1500.00', title: 'Default Title' }] }, customer: null, phone: '+919999999999', coachPrice: 500 };
+// The two live coach options. The first is preselected, so the default price is 500.
+const quote = { product: { title: 'Diabetes management program', variants: [
+  { id: 'gid://shopify/ProductVariant/68310135406902', title: 'Diabetes management program', price: '500.00' },
+  { id: 'gid://shopify/ProductVariant/68310135439670', title: 'Diabetes management program with full body test', price: '1500.00' },
+] }, customer: null, phone: '+919999999999' };
 let root, container, saved;
 const button = text => [...document.querySelectorAll('button')].find(node => node.textContent.includes(text));
 const click = async node => { await act(async () => { node.click(); }); };
@@ -49,6 +53,21 @@ test('fixed price, required payment reference and confirmation create one prepai
   expect(axios.post).toHaveBeenCalledWith('/api/health-expert/leads/lead/coach-purchase', expect.objectContaining({ paymentId: 'pay_123', paymentMode: 'Prepaid', expectedTotal: 500 }));
   expect(saved).toHaveBeenCalledWith(item);
   expect(document.body.textContent).toContain('Coach purchase confirmed — #COACH');
+});
+test('the order is priced from the selected variant, not a fixed amount', async () => {
+  // Same quote with the full body test option preselected: the price must follow it.
+  axios.get.mockResolvedValue({ data: { ...quote, product: { ...quote.product, variants: [...quote.product.variants].reverse() } } });
+  await open();
+  await click(button('Continue'));
+  expect(button('Create prepaid order').textContent).toContain('₹1,500.00');
+  await act(async () => { Simulate.change(input('Payment ID'), { target: { value: 'pay_123' } }); });
+  await click(document.querySelector('input[type="checkbox"]'));
+  axios.post.mockResolvedValue({ data: { item: { _id: 'lead', healthExpertCoachPurchase: { confirmedAt: '2026-11-17' } } } });
+  await click(button('Create prepaid order'));
+  expect(axios.post).toHaveBeenCalledWith('/api/health-expert/leads/lead/coach-purchase', expect.objectContaining({
+    expectedTotal: 1500,
+    variantId: 'gid://shopify/ProductVariant/68310135439670',
+  }));
 });
 test('previously submitted checkout offers status recovery, not another purchase', async () => {
   axios.get.mockResolvedValue({ data: { recovering: true } });

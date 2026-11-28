@@ -40,7 +40,9 @@ export default function CoachCheckoutDialog({ lead, onClose, onSaved }) {
   }, [lead._id]);
   useEffect(() => { mounted.current = true; load(); return () => { mounted.current = false; }; }, [load]);
   const variant = data?.product?.variants?.find(item => item.id === variantId);
-  const total = Number(data?.coachPrice || 0);
+  // The price is the selected variant's own Shopify price, so switching option
+  // changes what is charged and what the Razorpay link is generated for.
+  const total = Number(variant?.price || 0);
   const validCustomer = Boolean(data?.customer || (customer.firstName.trim() && (!customer.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email))));
   const resetLink = () => {
     if (paymentLink) setLinkMessage('Amount changed. Generate a new link below; do not use the previous link.');
@@ -106,7 +108,7 @@ export default function CoachCheckoutDialog({ lead, onClose, onSaved }) {
                 <Typography variant="body2" color="text.secondary">This is a service order. No shipping address is required.</Typography>
               </Stack> : <Stack spacing={2}>
                 <Typography fontWeight={600}>{data.product.title}</Typography>
-                {data.product.variants.length > 1 && <TextField select label="Coach option" size="small" value={variantId} disabled={saving || generatingLink} onChange={e => { setVariantId(e.target.value); resetLink(); }}>{data.product.variants.map(item => <MenuItem key={item.id} value={item.id}>{item.title}</MenuItem>)}</TextField>}
+                {data.product.variants.length > 1 && <TextField select label="Coach option" size="small" value={variantId} disabled={saving || generatingLink} onChange={e => { setVariantId(e.target.value); resetLink(); }}>{data.product.variants.map(item => <MenuItem key={item.id} value={item.id}>{item.title} · {rupees(item.price)}</MenuItem>)}</TextField>}
                 <Box sx={{ p: 2, bgcolor: '#f6f8fc', borderRadius: 2 }}>
                   <Stack direction="row" justifyContent="space-between"><Typography>Product price</Typography><Typography>{rupees(total)}</Typography></Stack>
                   <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}><Typography fontWeight={700}>Amount paid</Typography><Typography fontWeight={700}>{rupees(total)}</Typography></Stack>
