@@ -22,7 +22,12 @@ import {
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { clearCachedData, getCachedData } from "../../utils/apiCache";
 
-const RETENTION_OVERVIEW_CACHE_TTL_MS = 60 * 1000;
+const RETENTION_OVERVIEW_CACHE_TTL_MS = 30 * 1000;
+const UNKNOWN_BUCKETS = [["unknown", "Unknown"], ["noCohortProducts", "No cohort products"]];
+const withUnknownTotal = (counts = {}) => ({
+  ...counts,
+  unknown: Number(counts.unknown ?? (Number(counts.durationUnknown || 0) + Number(counts.orderDataUnavailable || 0))),
+});
 
 export default function RetentionOverviewCombined() {
   const [loading, setLoading] = useState(false);
@@ -71,7 +76,7 @@ export default function RetentionOverviewCombined() {
     setError("");
     try {
       const params = new URLSearchParams({ lookbackDays: String(lookbackDays) });
-      const cacheKey = `retention-overview-combined:summary:${currentUserId}:${params.toString()}`;
+      const cacheKey = `retention-overview-combined:summary:v4:${currentUserId}:${params.toString()}`;
       if (refresh) clearCachedData(cacheKey);
       const json = await getCachedData(
         cacheKey,
@@ -79,8 +84,8 @@ export default function RetentionOverviewCombined() {
         RETENTION_OVERVIEW_CACHE_TTL_MS
       );
       setExpertSummary({
-        combined: json?.combined || {},
-        experts: Array.isArray(json?.experts) ? json.experts : [],
+        combined: withUnknownTotal(json?.combined || {}),
+        experts: Array.isArray(json?.experts) ? json.experts.map(withUnknownTotal) : [],
       });
     } catch (e) {
       setError(String(e.message || e));
@@ -139,7 +144,7 @@ export default function RetentionOverviewCombined() {
       return String(a?.healthExpert || "").localeCompare(String(b?.healthExpert || ""));
     }
 
-    if (["finished", "next10Days", "next10to20Days", "supply20PlusDays"].includes(sortBy)) {
+    if (["finished", "next10Days", "next10to20Days", "supply20PlusDays", "unknown", "noCohortProducts"].includes(sortBy)) {
       const ap = pctNum(a?.[sortBy], a?.totalActiveCustomers);
       const bp = pctNum(b?.[sortBy], b?.totalActiveCustomers);
       if (ap !== bp) return (ap - bp) * dir;
@@ -173,7 +178,7 @@ export default function RetentionOverviewCombined() {
               <CircularProgress size={20} />
               <Typography variant="body2">Loading combined retention overview…</Typography>
             </Stack>
-          ) : (
+          ) : error ? null : (
             <>
               <Card sx={{ borderRadius: 2, border: "1px solid #E2E8F0", mb: 2 }}>
                 <CardContent sx={{ p: 1.5 }}>
@@ -226,6 +231,13 @@ export default function RetentionOverviewCombined() {
                         icon={<OpenInNewIcon sx={{ fontSize: 16 }} />}
                       />
                     </Grid>
+                    {UNKNOWN_BUCKETS.filter(([key]) => key !== "noCohortProducts").map(([key, label]) => (
+                      <Grid item xs={12} sm={6} key={key}>
+                        <Chip label={`${label}: ${expertSummary?.combined?.[key] || 0} (${pct(expertSummary?.combined?.[key], expertSummary?.combined?.totalActiveCustomers)})`}
+                          sx={{ bgcolor: "#F1F5F9", fontWeight: 700, width: "100%" }}
+                          onClick={() => openCategoryInNewTab(key)} clickable icon={<OpenInNewIcon sx={{ fontSize: 16 }} />} />
+                      </Grid>
+                    ))}
                   </Grid>
                 </CardContent>
               </Card>
@@ -290,6 +302,11 @@ export default function RetentionOverviewCombined() {
                               20+ Days
                             </TableSortLabel>
                           </TableCell>
+                          {UNKNOWN_BUCKETS.map(([key, label]) => (
+                            <TableCell key={key} align="center" sx={{ fontWeight: 700 }}>
+                              <TableSortLabel active={sortBy === key} direction={sortBy === key ? sortDir : "desc"} onClick={() => handleSort(key)}>{label}</TableSortLabel>
+                            </TableCell>
+                          ))}
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -321,6 +338,12 @@ export default function RetentionOverviewCombined() {
                                 ({pct(r.supply20PlusDays, r.totalActiveCustomers)})
                               </Typography>
                             </TableCell>
+                            {UNKNOWN_BUCKETS.map(([key]) => (
+                              <TableCell key={key} align="center">
+                                <Typography sx={{ fontWeight: 700 }}>{r[key] || 0}</Typography>
+                                <Typography variant="caption">({pct(r[key], r.totalActiveCustomers)})</Typography>
+                              </TableCell>
+                            ))}
                           </TableRow>
                         ))}
                       </TableBody>

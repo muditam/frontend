@@ -295,8 +295,10 @@ const RetentionAgentDashboard = () => {
    next10Days: 0,
    next10to20Days: 0,
    supply20PlusDays: 0,
+   unknown: 0,
  });
  const [retentionOverviewLoading, setRetentionOverviewLoading] = useState(true);
+ const [retentionOverviewError, setRetentionOverviewError] = useState("");
 
 
  const [selectedRange, setSelectedRange] = useState("Month to date");
@@ -317,38 +319,45 @@ const RetentionAgentDashboard = () => {
  const canShowDrrPanel = Boolean(user?.permissions?.navbar?.drrPanel);
 
 
- const fetchAllSummaryData = useCallback(async (agentName, startDate, endDate) => {
+ const fetchAllSummaryData = useCallback(async (agentName, agentEmail, startDate, endDate) => {
    setLoadingMain(true);
    try {
-     const [activeCounts, todaySummaryData, followupData] = await getCachedData(
-       `retention-agent:summary:${agentName}:${startDate}:${endDate}`,
+     const [todaySummaryData, followupData] = await getCachedData(
+       `retention-agent:summary:v4:${agentName}:${agentEmail || ""}:${startDate}:${endDate}`,
        async () => {
-         const [activeCountsRes, todaySummaryRes, followupRes] = await Promise.all([
-           axios.get(`${API_BASE}/api/leads/retention/active-counts`),
+         const [todaySummaryRes, retentionLeadsRes] = await Promise.all([
            axios.get(`${API_BASE}/api/today-summary`, {
              params: { agentName, startDate, endDate },
            }),
-           axios.get(`${API_BASE}/api/followup-summary`, {
-             params: { agentName, startDate, endDate },
+           axios.get(`${API_BASE}/api/leads/retentions`, {
+             withCredentials: true,
+             params: {
+               fullName: agentName,
+               email: agentEmail,
+               page: 1,
+               limit: 1,
+               retentionStatus: "Active",
+             },
            }),
          ]);
+         const counts = retentionLeadsRes?.data?.counts || {};
+         const followups = counts.followups || {};
          return [
-           Array.isArray(activeCountsRes?.data) ? activeCountsRes.data : [],
            todaySummaryRes?.data || {},
-           followupRes?.data || {},
+           {
+             noFollowupSet: Number(followups.notset || 0),
+             followupMissed: Number(followups.missed || 0),
+             followupToday: Number(followups.today || 0),
+             followupTomorrow: Number(followups.tomorrow || 0),
+             followupLater: Number(followups.later || 0),
+             lostCustomers: Number(counts.lost || 0),
+           },
          ];
        },
        DASHBOARD_CACHE_TTL_MS
      );
 
-
-     const current = activeCounts.find((item) => item?._id === agentName);
-
-
-     setTodayMetrics({
-       ...(todaySummaryData || {}),
-       activeCustomers: Number(current?.activeCount || 0),
-     });
+     setTodayMetrics(todaySummaryData || {});
      setFollowupMetrics(followupData || {});
    } catch (error) {
      console.error("Error fetching today/followup data:", error);
@@ -434,11 +443,11 @@ const RetentionAgentDashboard = () => {
    if (!user?.fullName || !startDate || !endDate) return;
    setWindowLabel(`${prettyDate(startDate)} - ${prettyDate(endDate)}`);
    await Promise.all([
-     fetchAllSummaryData(user.fullName, startDate, endDate),
+     fetchAllSummaryData(user.fullName, user.email, startDate, endDate),
      fetchShipmentSummary(user.fullName, startDate, endDate),
      fetchAuxCards(startDate, endDate),
    ]);
- }, [fetchAllSummaryData, fetchAuxCards, fetchShipmentSummary, user?.fullName]);
+ }, [fetchAllSummaryData, fetchAuxCards, fetchShipmentSummary, user?.email, user?.fullName]);
 
 
  useEffect(() => {
@@ -502,16 +511,17 @@ const RetentionAgentDashboard = () => {
    const fetchMyRetentionOverview = async () => {
      if (!user?.fullName) return;
      setRetentionOverviewLoading(true);
+     setRetentionOverviewError("");
      try {
        const data = await getCachedData(
-         `retention-agent:overview:${user.fullName}`,
+         `retention-agent:overview:v5:${user.fullName}`,
          async () => {
            const response = await axios.get(`${API_BASE}/cohart-dataApi/active-customers-expert-summary`, {
-             params: { lookbackDays: 540 },
+             params: { lookbackDays: 540, healthExpert: user.fullName },
            });
            return response?.data;
          },
-         PROFILE_CACHE_TTL_MS
+         30 * 1000
        );
        const rows = Array.isArray(data?.experts) ? data.experts : [];
        const mine = rows.find(
@@ -525,16 +535,11 @@ const RetentionAgentDashboard = () => {
          next10Days: Number(mine?.next10Days || 0),
          next10to20Days: Number(mine?.next10to20Days || 0),
          supply20PlusDays: Number(mine?.supply20PlusDays || 0),
+         unknown: Number(mine?.unknown ?? (Number(mine?.durationUnknown || 0) + Number(mine?.orderDataUnavailable || 0))),
        });
      } catch (error) {
        console.error("Error fetching retention overview for logged-in user:", error);
-       setRetentionOverviewMine({
-         totalActiveCustomers: 0,
-         finished: 0,
-         next10Days: 0,
-         next10to20Days: 0,
-         supply20PlusDays: 0,
-       });
+       setRetentionOverviewError("Retention overview could not be loaded. Please refresh to try again.");
      } finally {
        setRetentionOverviewLoading(false);
      }
@@ -593,7 +598,7 @@ const RetentionAgentDashboard = () => {
  const todayCards = [
    {
      label: "Active Customers",
-     value: Number(todayMetrics.activeCustomers || 0).toLocaleString("en-IN"),
+     value: Number(retentionOverviewMine.totalActiveCustomers || 0).toLocaleString("en-IN"),
      sub: "Current active base",
    },
    {
@@ -636,8 +641,8 @@ const RetentionAgentDashboard = () => {
  const deliveredShipmentCount = Number(deliveredShipmentRow?.count || 0);
 
 
- const conversionRate = Number(todayMetrics.activeCustomers || 0)
-   ? ((Number(todayMetrics.salesDone || 0) / Number(todayMetrics.activeCustomers || 1)) * 100).toFixed(2)
+ const conversionRate = Number(retentionOverviewMine.totalActiveCustomers || 0)
+   ? ((Number(todayMetrics.salesDone || 0) / Number(retentionOverviewMine.totalActiveCustomers || 1)) * 100).toFixed(2)
    : "0.00";
 
 
@@ -795,12 +800,13 @@ const RetentionAgentDashboard = () => {
          <div className="rd-section-head">
            <h2>Retention Overview</h2>
          </div>
+         {retentionOverviewError && <p role="alert">{retentionOverviewError}</p>}
          <section
            className="rd-kpi-ribbon"
            style={{
              marginTop: 0,
              display: "grid",
-             gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+             gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
              gap: "12px",
            }}
          >
@@ -811,7 +817,7 @@ const RetentionAgentDashboard = () => {
                  <Skeleton variant="text" height={34} width="80%" sx={{ mt: 0.6 }} />
                </article>
              ))
-           ) : (
+           ) : retentionOverviewError ? null : (
              <>
                <article
                  className="rd-kpi-pill"
@@ -863,6 +869,16 @@ const RetentionAgentDashboard = () => {
                  <span className="rd-kpi-label rd-chip-green">20+ Days</span>
                  <strong>{retentionOverviewMine.supply20PlusDays.toLocaleString("en-IN")} ({myPct(retentionOverviewMine.supply20PlusDays)}%)</strong>
                </article>
+               {[
+                 ["unknown", "Unknown"],
+               ].map(([key, label]) => (
+                 <article key={key} className="rd-kpi-pill" style={{ cursor: "pointer", position: "relative" }}
+                   onClick={() => openOverviewCategoryInNewTab(key)} title="Open details in new tab">
+                   <OpenInNewIcon sx={{ position: "absolute", top: 10, right: 10, fontSize: 16, opacity: 0.75 }} />
+                   <span className="rd-kpi-label">{label}</span>
+                   <strong>{Number(retentionOverviewMine[key] || 0).toLocaleString("en-IN")} ({myPct(retentionOverviewMine[key])}%)</strong>
+                 </article>
+               ))}
              </>
            )}
          </section>
