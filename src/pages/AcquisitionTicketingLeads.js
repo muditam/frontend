@@ -150,7 +150,7 @@ export default function AcquisitionTicketingLeads() {
   );
 
   if (!canAccess()) {
-    return <Box p={3}><Alert severity="error">This tab is available only to Sales Agents, Managers, and administrators.</Alert></Box>;
+    return <Box p={3}><Alert severity="error">You do not have permission to access Acquisition Leads.</Alert></Box>;
   }
 
   return (
