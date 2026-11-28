@@ -648,7 +648,7 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
       setIsUpdatingCustomerPhone(true);
       setCustomerPopupError("");
 
-      await axios.put(
+      const response = await axios.put(
         `${checkoutApiOrigin}/api/shopify/customer-phone-country-code`,
         {
           customerId: customerCountryCodeFix.customerId,
@@ -656,9 +656,25 @@ const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, 
         }
       );
 
+      const selectedCustomer = response.data?.customer;
+      if (selectedCustomer?.id) {
+        dispatch(setCustomerId(selectedCustomer.id));
+        dispatch(
+          setCustomerName(
+            `${selectedCustomer.first_name || ""} ${
+              selectedCustomer.last_name || ""
+            }`.trim()
+          )
+        );
+      }
+
       setShowCreateCustomerPopup(false);
       setCustomerCountryCodeFix(null);
-      setCustomerPromptMessage("Customer phone updated to +91. Click Check again.");
+      setCustomerPromptMessage(
+        response.data?.usedExistingCustomer
+          ? "The existing Shopify customer with this +91 number has been selected."
+          : "Customer phone updated to +91. Click Check again."
+      );
     } catch (error) {
       console.error("Error updating customer phone:", error);
       setCustomerPopupError(
