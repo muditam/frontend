@@ -119,6 +119,7 @@ export default function FutureOrdersPage() {
   const [confirmOrder, setConfirmOrder] = useState(null);
   const [deleteOrder, setDeleteOrder] = useState(null);
   const [markAsPaid, setMarkAsPaid] = useState(false);
+  const [paidTransactionId, setPaidTransactionId] = useState("");
   const [placingId, setPlacingId] = useState("");
   const [deletingId, setDeletingId] = useState("");
 
@@ -166,9 +167,11 @@ export default function FutureOrdersPage() {
     try {
       await api.post(`/api/future-orders/${confirmOrder._id}/place`, {
         markAsPaid: markAsPaid && canMarkAsPaid(confirmOrder),
+        transactionId: markAsPaid ? paidTransactionId.trim() : "",
       });
       setConfirmOrder(null);
       setMarkAsPaid(false);
+      setPaidTransactionId("");
       await fetchRows();
     } catch (err) {
       console.error("Failed to place future order", err);
@@ -355,7 +358,11 @@ export default function FutureOrdersPage() {
                           size="small"
                           variant="contained"
                           disabled={row.status !== "pending" || placingId === row._id}
-                          onClick={() => setConfirmOrder(row)}
+                          onClick={() => {
+                            setConfirmOrder(row);
+                            setMarkAsPaid(false);
+                            setPaidTransactionId(String(row.transactionId || ""));
+                          }}
                           sx={{ whiteSpace: "nowrap", textTransform: "none" }}
                         >
                           {placingId === row._id ? "Placing..." : "Place Order"}
@@ -407,6 +414,7 @@ export default function FutureOrdersPage() {
           if (placingId) return;
           setConfirmOrder(null);
           setMarkAsPaid(false);
+          setPaidTransactionId("");
         }}
         maxWidth="xs"
         fullWidth
@@ -422,24 +430,38 @@ export default function FutureOrdersPage() {
             </Typography>
           ) : null}
           {confirmOrder && canMarkAsPaid(confirmOrder) ? (
-            <FormControlLabel
-              sx={{ mt: 1.5, alignItems: "flex-start" }}
-              control={
-                <Checkbox
-                  checked={markAsPaid}
+            <Box sx={{ mt: 1.5 }}>
+              <FormControlLabel
+                sx={{ alignItems: "flex-start" }}
+                control={
+                  <Checkbox
+                    checked={markAsPaid}
+                    disabled={Boolean(placingId)}
+                    onChange={(event) => setMarkAsPaid(event.target.checked)}
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body2">Mark as paid</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Shopify financial status will be paid for this placed order.
+                    </Typography>
+                  </Box>
+                }
+              />
+              {markAsPaid ? (
+                <TextField
+                  fullWidth
+                  size="small"
+                  sx={{ mt: 1 }}
+                  label="Transaction ID (optional)"
+                  value={paidTransactionId}
                   disabled={Boolean(placingId)}
-                  onChange={(event) => setMarkAsPaid(event.target.checked)}
+                  onChange={(event) => setPaidTransactionId(event.target.value)}
+                  helperText="If blank, the order will be recorded as a manual paid order."
                 />
-              }
-              label={
-                <Box>
-                  <Typography variant="body2">Mark as paid</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Shopify financial status will be paid for this placed order.
-                  </Typography>
-                </Box>
-              }
-            />
+              ) : null}
+            </Box>
           ) : null}
         </DialogContent>
         <DialogActions>
@@ -448,6 +470,7 @@ export default function FutureOrdersPage() {
             onClick={() => {
               setConfirmOrder(null);
               setMarkAsPaid(false);
+              setPaidTransactionId("");
             }}
           >
             No
