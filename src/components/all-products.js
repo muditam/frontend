@@ -224,6 +224,8 @@ export default function AllProducts() {
         cohort,
       });
       clearCachedData("all-products:");
+      clearCachedData("retention-agent:overview:");
+      clearCachedData("retention-overview-combined:");
     } catch (e) {
       console.error("Failed to save product meta:", e);
     }
@@ -242,7 +244,6 @@ export default function AllProducts() {
         sku: row.sku ?? "",
         price: row.price ?? 0,
         month: v,
-        cohort: rowInputs[k]?.cohort ?? "Yes",
       });
     }
   };
@@ -259,7 +260,6 @@ export default function AllProducts() {
         title: row.title,
         sku: row.sku ?? "",
         price: row.price ?? 0,
-        month: rowInputs[k]?.month ?? "",
         cohort: v,
       });
     }

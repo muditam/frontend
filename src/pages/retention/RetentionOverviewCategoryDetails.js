@@ -11,6 +11,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   TableSortLabel,
   Typography,
@@ -25,6 +26,10 @@ const LABELS = {
   next10Days: "Finishing in 10 Days",
   next10to20Days: "10–20 Days",
   supply20PlusDays: "20+ Days",
+  unknown: "Unknown",
+  durationUnknown: "Duration unknown",
+  orderDataUnavailable: "Order data unavailable",
+  noCohortProducts: "No cohort products",
 };
 
 function fmtDate(iso) {
@@ -51,8 +56,11 @@ export default function RetentionOverviewCategoryDetails() {
   const [data, setData] = useState({ rows: [], total: 0 });
   const [sortBy, setSortBy] = useState("lastOrderDate");
   const [sortDir, setSortDir] = useState("desc");
+  const [page, setPage] = useState(0);
+  const pageSize = 50;
 
   const handleSort = (key) => {
+    setPage(0);
     if (sortBy === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
       return;
@@ -62,63 +70,46 @@ export default function RetentionOverviewCategoryDetails() {
   };
 
   useEffect(() => {
+    setPage(0);
+  }, [category, location.search]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
     const run = async () => {
       setLoading(true);
       setError("");
       try {
         const incoming = new URLSearchParams(location.search || "");
         const qs = new URLSearchParams({ lookbackDays: "540", category: category || "totalActive" });
+        qs.set("page", String(page + 1));
+        qs.set("limit", String(pageSize));
+        qs.set("sortBy", sortBy);
+        qs.set("sortDir", sortDir);
         const healthExpert = String(incoming.get("healthExpert") || "").trim();
         if (healthExpert) qs.set("healthExpert", healthExpert);
         const res = await fetch(`${API_BASE}/cohart-dataApi/active-customers-category-details?${qs.toString()}`, {
           headers: { Accept: "application/json" },
           credentials: "include",
+          signal: controller.signal,
         });
         const text = await res.text();
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
         const json = JSON.parse(text);
-        setData({ rows: Array.isArray(json?.rows) ? json.rows : [], total: Number(json?.total || 0) });
+        if (active) setData({ rows: Array.isArray(json?.rows) ? json.rows : [], total: Number(json?.total || 0) });
       } catch (e) {
+        if (!active) return;
         setError(String(e.message || e));
         setData({ rows: [], total: 0 });
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
     run();
-  }, [category, location.search]);
+    return () => { active = false; controller.abort(); };
+  }, [category, location.search, page, sortBy, sortDir]);
 
-  const sortedRows = [...(data.rows || [])].sort((a, b) => {
-    const dir = sortDir === "asc" ? 1 : -1;
-    if (sortBy === "customerName") {
-      return String(a?.customerName || "").localeCompare(String(b?.customerName || "")) * dir;
-    }
-    if (sortBy === "contactNumber") {
-      return String(a?.contactNumber || "").localeCompare(String(b?.contactNumber || "")) * dir;
-    }
-    if (sortBy === "productsOrdered") {
-      const av = Array.isArray(a?.productsOrdered) ? a.productsOrdered.join(", ") : "";
-      const bv = Array.isArray(b?.productsOrdered) ? b.productsOrdered.join(", ") : "";
-      return av.localeCompare(bv) * dir;
-    }
-    if (sortBy === "lastOrderDate") {
-      const av = a?.lastOrderDate ? new Date(a.lastOrderDate).getTime() : 0;
-      const bv = b?.lastOrderDate ? new Date(b.lastOrderDate).getTime() : 0;
-      return (av - bv) * dir;
-    }
-    if (sortBy === "totalOrders") {
-      const av = Number(a?.totalOrders || 0);
-      const bv = Number(b?.totalOrders || 0);
-      return (av - bv) * dir;
-    }
-    if (sortBy === "daysSince") {
-      const av = Number(daysSince(a?.lastOrderDate));
-      const bv = Number(daysSince(b?.lastOrderDate));
-      return ((Number.isFinite(av) ? av : -1) - (Number.isFinite(bv) ? bv : -1)) * dir;
-    }
-    return 0;
-  });
-
+  const sortedRows = data.rows || [];
   return (
     <Box sx={{ p: 2 }}>
       <Card sx={{ borderRadius: 3, border: "1px solid #D4DFEC" }}>
@@ -224,6 +215,10 @@ export default function RetentionOverviewCategoryDetails() {
               </Table>
             </TableContainer>
           )}
+          <TablePagination component="div" count={data.total} page={page} rowsPerPage={pageSize}
+            rowsPerPageOptions={[pageSize]} onPageChange={(_, nextPage) => setPage(nextPage)}
+            backIconButtonProps={{ disabled: loading || page === 0 }}
+            nextIconButtonProps={{ disabled: loading || (page + 1) * pageSize >= data.total }} />
         </CardContent>
       </Card>
     </Box>

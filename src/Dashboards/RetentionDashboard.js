@@ -295,8 +295,10 @@ const RetentionAgentDashboard = () => {
    next10Days: 0,
    next10to20Days: 0,
    supply20PlusDays: 0,
+   unknown: 0,
  });
  const [retentionOverviewLoading, setRetentionOverviewLoading] = useState(true);
+ const [retentionOverviewError, setRetentionOverviewError] = useState("");
 
 
  const [selectedRange, setSelectedRange] = useState("Month to date");
@@ -321,7 +323,7 @@ const RetentionAgentDashboard = () => {
    setLoadingMain(true);
    try {
      const [todaySummaryData, followupData] = await getCachedData(
-       `retention-agent:summary:v3:${agentName}:${agentEmail || ""}:${startDate}:${endDate}`,
+       `retention-agent:summary:v4:${agentName}:${agentEmail || ""}:${startDate}:${endDate}`,
        async () => {
          const [todaySummaryRes, retentionLeadsRes] = await Promise.all([
            axios.get(`${API_BASE}/api/today-summary`, {
@@ -509,16 +511,17 @@ const RetentionAgentDashboard = () => {
    const fetchMyRetentionOverview = async () => {
      if (!user?.fullName) return;
      setRetentionOverviewLoading(true);
+     setRetentionOverviewError("");
      try {
        const data = await getCachedData(
-         `retention-agent:overview:v2:${user.fullName}`,
+         `retention-agent:overview:v5:${user.fullName}`,
          async () => {
            const response = await axios.get(`${API_BASE}/cohart-dataApi/active-customers-expert-summary`, {
-             params: { lookbackDays: 540 },
+             params: { lookbackDays: 540, healthExpert: user.fullName },
            });
            return response?.data;
          },
-         PROFILE_CACHE_TTL_MS
+         30 * 1000
        );
        const rows = Array.isArray(data?.experts) ? data.experts : [];
        const mine = rows.find(
@@ -532,16 +535,11 @@ const RetentionAgentDashboard = () => {
          next10Days: Number(mine?.next10Days || 0),
          next10to20Days: Number(mine?.next10to20Days || 0),
          supply20PlusDays: Number(mine?.supply20PlusDays || 0),
+         unknown: Number(mine?.unknown ?? (Number(mine?.durationUnknown || 0) + Number(mine?.orderDataUnavailable || 0))),
        });
      } catch (error) {
        console.error("Error fetching retention overview for logged-in user:", error);
-       setRetentionOverviewMine({
-         totalActiveCustomers: 0,
-         finished: 0,
-         next10Days: 0,
-         next10to20Days: 0,
-         supply20PlusDays: 0,
-       });
+       setRetentionOverviewError("Retention overview could not be loaded. Please refresh to try again.");
      } finally {
        setRetentionOverviewLoading(false);
      }
@@ -802,12 +800,13 @@ const RetentionAgentDashboard = () => {
          <div className="rd-section-head">
            <h2>Retention Overview</h2>
          </div>
+         {retentionOverviewError && <p role="alert">{retentionOverviewError}</p>}
          <section
            className="rd-kpi-ribbon"
            style={{
              marginTop: 0,
              display: "grid",
-             gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+             gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
              gap: "12px",
            }}
          >
@@ -818,7 +817,7 @@ const RetentionAgentDashboard = () => {
                  <Skeleton variant="text" height={34} width="80%" sx={{ mt: 0.6 }} />
                </article>
              ))
-           ) : (
+           ) : retentionOverviewError ? null : (
              <>
                <article
                  className="rd-kpi-pill"
@@ -870,6 +869,16 @@ const RetentionAgentDashboard = () => {
                  <span className="rd-kpi-label rd-chip-green">20+ Days</span>
                  <strong>{retentionOverviewMine.supply20PlusDays.toLocaleString("en-IN")} ({myPct(retentionOverviewMine.supply20PlusDays)}%)</strong>
                </article>
+               {[
+                 ["unknown", "Unknown"],
+               ].map(([key, label]) => (
+                 <article key={key} className="rd-kpi-pill" style={{ cursor: "pointer", position: "relative" }}
+                   onClick={() => openOverviewCategoryInNewTab(key)} title="Open details in new tab">
+                   <OpenInNewIcon sx={{ position: "absolute", top: 10, right: 10, fontSize: 16, opacity: 0.75 }} />
+                   <span className="rd-kpi-label">{label}</span>
+                   <strong>{Number(retentionOverviewMine[key] || 0).toLocaleString("en-IN")} ({myPct(retentionOverviewMine[key])}%)</strong>
+                 </article>
+               ))}
              </>
            )}
          </section>
