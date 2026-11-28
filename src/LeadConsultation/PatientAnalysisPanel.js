@@ -23,6 +23,7 @@ import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import axios from "axios";
 import CallBriefCard from "./CallBriefCard";
+import ShipmentHistory from "./ShipmentHistory";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const api = axios.create({ baseURL: API_BASE, withCredentials: true, timeout: 20000 });
@@ -484,6 +485,10 @@ export default function PatientAnalysisPanel({ customerId }) {
               <AccordionDetails>
                 <Stack spacing={1.5}>
                   <SummaryView analysis={analysis} pending={pendingJob(jobs.analysis)} />
+                  <ShipmentHistory
+                    shipments={brief?.shipments || []}
+                    orderFacts={(brief?.glance || []).filter(fact => /^order\b/i.test(String(fact.source || "").trim()))}
+                  />
                   <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
                     <Button size="small" onClick={handleAnalyse} disabled={loading || waitingForTranscript || (pendingJob(jobs.analysis) && !jobs.analysis.paused)}>Refresh source history</Button>
                   </Box>
