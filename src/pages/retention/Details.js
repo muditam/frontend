@@ -1007,7 +1007,7 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
                          label="Diet Type"
                          onChange={handleChange}
                        >
-                         {["Vegetarian", "Non-vegetarian", "Vegan"].map(
+                         {["Vegetarian", "Non-vegetarian", "Eggetarian", "Vegan"].map(
                            (option) => (
                              <MenuItem key={option} value={option}>
                                {option}

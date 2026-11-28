@@ -429,6 +429,7 @@ const Presales = ({ customerId, parentLeadStatus }) => {
                 >
                   <MenuItem value="Vegetarian">Vegetarian</MenuItem>
                   <MenuItem value="Non-vegetarian">Non-vegetarian</MenuItem>
+                  <MenuItem value="Eggetarian">Eggetarian</MenuItem>
                   <MenuItem value="Vegan">Vegan</MenuItem>
                 </Select>
               </FormControl>
